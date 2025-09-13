@@ -84,6 +84,16 @@ public class Game_Logic : MonoBehaviour
     public float             bgmFadeInTime     = 0.35f;
     public float             bgmPauseExtra     = 0.80f;
 
+    // >>> 輸球 BGM（sadmusic） <<<
+    [Header("Sad Music (on loss)")]
+    public AudioClip sadMusic;                 // 指到 Assets/Sound/sadmusic.mp3
+    [Range(0f,1f)] public float sadMusicVolume = 1f;
+    [Tooltip("sadmusic 播完後，額外暫停 BGM 的秒數")]
+    public float sadHoldExtra = 0.5f;
+    private Coroutine sadRoutine;
+    [Tooltip("專用的悲傷音樂 AudioSource（建議在 Inspector 綁定；若空則會自動建立）")]
+    public AudioSource sadSource;
+
     // ===================== 跑壘 UI（整合 UIRunnerQuick） =====================
     [Header("Runner UI")]
     public UIRunnerQuick uiRunner;      // 把 InfieldPanel 上的 UIRunnerQuick 拖進來
@@ -122,6 +132,101 @@ public class Game_Logic : MonoBehaviour
 
     // dropdown 同步旗標
     bool syncing = false;
+
+    // ===================== 語音 VO =====================
+    [Header("Voice (VO)")]
+    public AudioSource voice;  // 建議獨立一個 AudioSource 給語音
+
+    // 基礎事件
+    public AudioClip[] voStartAtBat;      // 開始/進入打席
+    public AudioClip[] voChooseFirst;     // 請先選擇揮棒或看球
+
+    // 球種（可選）
+    public AudioClip[] voFastball;        // 快速球
+    public AudioClip[] voSlider;          // 滑球
+    public AudioClip[] voChangeup;        // 變速球
+    public AudioClip[] voCurve;           // 曲球
+
+    // 單一投球結果
+    public AudioClip[] voBall;            // 壞球
+    public AudioClip[] voStrikeLooking;   // 好球（看）
+    public AudioClip[] voSwingMiss;       // 揮空
+    public AudioClip[] voFoul;            // 界外
+    public AudioClip[] voHit;             // 安打
+    public AudioClip[] voHomerun;         // 全壘打
+    public AudioClip[] voOut;             // 出局
+    public AudioClip[] voStrikeout;       // 三振出局
+    public AudioClip[] voWalk;            // 保送
+
+    // 跑壘/得分與比數
+    public AudioClip[] voPushRunner;      // 跑者推進
+    public AudioClip[] voBasesLoaded;     // 滿壘
+    public AudioClip[] voTie;             // 追平
+    public AudioClip[] voLead;            // 超前
+    public AudioClip[] voWalkoff;         // 再見分
+
+    // 結束
+    public AudioClip[] voInningOver;      // 三出局 半局結束
+
+    // 常見球數（可選）
+    public AudioClip[] voCountFull;       // 滿球數
+    public AudioClip[] voCountOneStrike;  // 一好球
+    public AudioClip[] voCountTwoStrikes; // 兩好球
+    public AudioClip[] voCountTwoOne;     // 兩好一壞
+    public AudioClip[] voCountTwoBalls;   // 兩壞球
+    public AudioClip[] voCountThreeBalls; // 三壞球
+
+    // ========== VO 播報節奏控制 ==========
+    [Header("Voice Timing")]
+    [Tooltip("球種播報與結果播報之間的延遲（秒）")]
+    public float voDelayBetween = 0.6f;
+    private bool isPitching = false;
+
+    // ========= VO 工具方法 =========
+    void Speak(AudioClip[] bank, float pitch = 1f, float volume = 1f)
+    {
+        if (voice == null || bank == null || bank.Length == 0) return;
+        var clip = bank[Random.Range(0, bank.Length)];
+        if (clip == null) return;
+        float oldPitch = voice.pitch;
+        float oldVol   = voice.volume;
+        voice.pitch  = pitch;
+        voice.volume = oldVol * volume;
+        voice.PlayOneShot(clip);
+        voice.pitch  = oldPitch;
+        voice.volume = oldVol;
+    }
+
+    void SpeakCountCommon()
+    {
+        if (balls == 3 && strikes == 2) { Speak(voCountFull); return; }
+        if (strikes == 2 && balls == 1) { Speak(voCountTwoOne); return; }
+        if (strikes == 2 && balls == 0) { Speak(voCountTwoStrikes); return; }
+        if (strikes == 1 && balls == 0) { Speak(voCountOneStrike); return; }
+        if (balls == 2 && strikes == 0) { Speak(voCountTwoBalls); return; }
+        if (balls == 3 && strikes == 0) { Speak(voCountThreeBalls); return; }
+    }
+
+    void SpeakBasesIfLoaded()
+    {
+        if (on1B && on2B && on3B) Speak(voBasesLoaded);
+    }
+
+    void SpeakScoreSwing()
+    {
+        if (ourScore == oppScore) Speak(voTie);
+        else if (ourScore > oppScore) Speak(voLead);
+    }
+
+    void SpeakPitchType(string zh)
+    {
+        if (zh == "快速球") Speak(voFastball);
+        else if (zh == "滑球") Speak(voSlider);
+        else if (zh == "變速球") Speak(voChangeup);
+        else if (zh == "曲球") Speak(voCurve);
+    }
+
+    // =========================================================
 
     void Start()
     {
@@ -171,6 +276,16 @@ public class Game_Logic : MonoBehaviour
             bgmSource.Play();
         }
 
+        // 若沒手動指定，動態建立 sadSource（避免跟 BGM 共用）
+        if (sadSource == null)
+        {
+            sadSource = gameObject.AddComponent<AudioSource>();
+            sadSource.loop = false;
+            sadSource.playOnAwake = false;
+            sadSource.spatialBlend = 0f; // 2D
+            sadSource.volume = 1f;
+        }
+
         GenerateNewInning();
         AlignRecordAreaToTitle();
     }
@@ -202,6 +317,14 @@ public class Game_Logic : MonoBehaviour
     // ===================== Inning lifecycle =====================
     void GenerateNewInning()
     {
+        // ★ 重新開始：立刻停掉所有音訊/協程、收結束面板，避免追平/全壘打/歡呼殘留
+        StopAllAudioNow();
+        ResetEndUI();
+        isPitching = false;
+
+        // ★ 保留：把悲傷音樂關掉並恢復 BGM（雙保險）
+        StopSadNow();
+
         inningOver  = false;
 
         strikes     = 0;
@@ -297,6 +420,9 @@ public class Game_Logic : MonoBehaviour
     {
         if (!gameStarted)
         {
+            // 保險：切入新打席前把殘留音全部停掉
+            StopAllAudioNow();
+
             // 第一次按：從「開始遊戲」切到正式出手狀態
             gameStarted = true;
             SetConfirmLabel("上吧！！");
@@ -310,6 +436,9 @@ public class Game_Logic : MonoBehaviour
 
             // 初次顯示跑者在本壘
             if (uiRunner != null) uiRunner.TeleportAdvance(0, 0);
+
+            // 開場語音
+            Speak(voStartAtBat);
             return;
         }
 
@@ -388,6 +517,7 @@ public class Game_Logic : MonoBehaviour
         if (takeButton  != null) takeButton .image.color = Color.white;
     }
 
+    // ===== 使用 Coroutine：分離「球種 →（延遲）→ 結果」=====
     void ExecutePitch()
     {
         if (inningOver) return;
@@ -395,35 +525,58 @@ public class Game_Logic : MonoBehaviour
         if (currentChoice == Choice.None)
         {
             outcomeInfo.text = "請先選擇「揮棒」或「看球」，再按「出手」！";
+            Speak(voChooseFirst);
             return;
         }
 
-        string thisPitchZh = pitchTypesZh[Random.Range(0, pitchTypesZh.Length)];
-        string actionZh    = (currentChoice == Choice.Swing) ? GetSwingActionZh() : "看球";
-        string resultZh    = (currentChoice == Choice.Take) ? ExecuteTake() : ExecuteSwing();
+        if (isPitching) return; // 避免重複出手
+        isPitching = true;
 
+        string thisPitchZh = pitchTypesZh[Random.Range(0, pitchTypesZh.Length)];
         pitchNumber++;
+
+        StartCoroutine(CoPitchAndResult(thisPitchZh));
+    }
+
+    IEnumerator CoPitchAndResult(string thisPitchZh)
+    {
+        // 先播球種
+        SpeakPitchType(thisPitchZh);
+
+        // 等待設定的延遲
+        yield return new WaitForSeconds(voDelayBetween);
+
+        string actionZh = (currentChoice == Choice.Swing) ? GetSwingActionZh() : "看球";
+        string resultZh = (currentChoice == Choice.Take) ? ExecuteTake() : ExecuteSwing();
+
         AppendRecordLine(pitchNumber, thisPitchZh, actionZh, resultZh);
 
         if (outs >= 3)
         {
             string msg = $"半局結束 — 三出局。比數 {ourScore}:{oppScore}";
             EndInning(msg);
+            if (ourScore < oppScore) StartSadNow();  // 若落後，播 sad
+            Speak(voInningOver);
             FinishAtBat(ResultType.InningOver, msg);
-            return;
+            isPitching = false;
+            yield break;
         }
         if (ourScore > oppScore)
         {
             string msg = $"再見分！我們以 {ourScore}:{oppScore} 超前！";
             EndInning(msg);
             PlayOneShot(sfxCheer);
+            Speak(voWalkoff);
             FinishAtBat(ResultType.WalkOffWin, msg);
-            return;
+            isPitching = false;
+            yield break;
         }
 
         UpdateScenarioText();
         UpdateBaseIcons();
         AutoScrollToBottom();
+
+        isPitching = false;
     }
 
     // ----- Take: 55% 好球、45% 壞球 -----
@@ -435,31 +588,38 @@ public class Game_Logic : MonoBehaviour
             strikes++;
             outcomeInfo.text = "好球（看）";
             PlayOneShot(sfxCatch, pitchTakeStrike);
+            Speak(voStrikeLooking);
             CheckStrikeout();
             UpdateCountLights();
+            SpeakCountCommon();
             return "好球（看）";
         }
         else
         {
             balls++;
             PlayOneShot(sfxCatch, pitchTakeBall);
+            Speak(voBall);
             if (balls >= 4)
             {
                 outcomeInfo.text = "保送（推進）";
                 WalkAdvance();
+                Speak(voWalk);
+                Speak(voPushRunner);
+                SpeakBasesIfLoaded();
+                SpeakScoreSwing();
+
                 FinishAtBat(ResultType.Walk, $"跑者推進。比數 {ourScore}:{oppScore}");
                 ResetCountForNextBatter();
                 return "保送";
             }
             outcomeInfo.text = "壞球";
             UpdateCountLights();
+            SpeakCountCommon();
             return "壞球";
         }
     }
 
-    // ----- Swing 機率 -----
-    // 全力：安打 20%、全壘打 4%、出局 40%、揮空 24%、界外 12%
-    // 普通：安打 24%、全壘打 2%、出局 42%、揮空 17%、界外 15%
+    // ----- Swing 機率（保持你的設定，並加入語音） -----
     string ExecuteSwing()
     {
         int swingType = (swingTypeDropdown != null) ? swingTypeDropdown.value : 1; // 0=全力, 1=普通
@@ -469,49 +629,75 @@ public class Game_Logic : MonoBehaviour
         {
             if (r < 0.20f) { SingleAdvance(); outcomeInfo.text = "安打（全力）";
                 PlayOneShot(sfxHit);
+                Speak(voHit);
+                Speak(voPushRunner);
+                SpeakBasesIfLoaded();
+                SpeakScoreSwing();
+
                 FinishAtBat(ResultType.Hit, $"跑者前進。比數 {ourScore}:{oppScore}");
                 ResetCountForNextBatter(); return "安打"; }
 
-            else if (r < 0.24f) { Homerun(); outcomeInfo.text = "全壘打（全力）";
+            else if (r < 0.28f) { Homerun(); outcomeInfo.text = "全壘打（全力）";
                 PlayOneShot(sfxHit);
+                PlayOneShot(sfxCheer); // 歡呼
+                Speak(voHomerun);
+                SpeakScoreSwing();
+
                 FinishAtBat(ResultType.Homerun, $"比數 {ourScore}:{oppScore}");
                 ResetCountForNextBatter(); return "全壘打"; }
 
             else if (r < 0.64f) { outs++; outcomeInfo.text = "出局（全力）";
+                Speak(voOut);
+                StartSadNow(); // 出局觸發悲傷音樂
                 FinishAtBat(ResultType.Out, $"出局數：{outs}");
                 ResetCountForNextBatter(); return "出局"; }
 
             else if (r < 0.88f) { strikes++; outcomeInfo.text = "揮空";
                 PlayOneShot(sfxCatch, pitchSwingMiss);
-                CheckStrikeout(); UpdateCountLights(); return "揮空"; }
+                Speak(voSwingMiss);
+                CheckStrikeout(); UpdateCountLights(); SpeakCountCommon(); return "揮空"; }
 
             else { if (strikes < 2) strikes++; outcomeInfo.text = "界外";
                 PlayOneShot(sfxCatch, pitchFoul);
-                UpdateCountLights(); return "界外"; }
+                Speak(voFoul);
+                UpdateCountLights(); SpeakCountCommon(); return "界外"; }
         }
         else // 普通
         {
             if (r < 0.24f) { SingleAdvance(); outcomeInfo.text = "安打（普通）";
                 PlayOneShot(sfxHit);
+                Speak(voHit);
+                Speak(voPushRunner);
+                SpeakBasesIfLoaded();
+                SpeakScoreSwing();
+
                 FinishAtBat(ResultType.Hit, $"跑者前進。比數 {ourScore}:{oppScore}");
                 ResetCountForNextBatter(); return "安打"; }
 
-            else if (r < 0.26f) { Homerun(); outcomeInfo.text = "全壘打（普通）";
+            else if (r < 0.29f) { Homerun(); outcomeInfo.text = "全壘打（普通）";
                 PlayOneShot(sfxHit);
+                PlayOneShot(sfxCheer); // 歡呼
+                Speak(voHomerun);
+                SpeakScoreSwing();
+
                 FinishAtBat(ResultType.Homerun, $"比數 {ourScore}:{oppScore}");
                 ResetCountForNextBatter(); return "全壘打"; }
 
             else if (r < 0.68f) { outs++; outcomeInfo.text = "出局（普通）";
+                Speak(voOut);
+                StartSadNow(); // 出局觸發悲傷音樂
                 FinishAtBat(ResultType.Out, $"出局數：{outs}");
                 ResetCountForNextBatter(); return "出局"; }
 
             else if (r < 0.85f) { strikes++; outcomeInfo.text = "揮空";
                 PlayOneShot(sfxCatch, pitchSwingMiss);
-                CheckStrikeout(); UpdateCountLights(); return "揮空"; }
+                Speak(voSwingMiss);
+                CheckStrikeout(); UpdateCountLights(); SpeakCountCommon(); return "揮空"; }
 
             else { if (strikes < 2) strikes++; outcomeInfo.text = "界外";
                 PlayOneShot(sfxCatch, pitchFoul);
-                UpdateCountLights(); return "界外"; }
+                Speak(voFoul);
+                UpdateCountLights(); SpeakCountCommon(); return "界外"; }
         }
     }
 
@@ -578,6 +764,9 @@ public class Game_Logic : MonoBehaviour
         {
             outs++;
             outcomeInfo.text = "三振出局！";
+            // 三振語音 + 悲傷音樂
+            Speak(voStrikeout);
+            StartSadNow();
             FinishAtBat(ResultType.Strikeout, $"出局數：{outs}");
             ResetCountForNextBatter();
         }
@@ -770,6 +959,83 @@ public class Game_Logic : MonoBehaviour
         bgmSource.volume = bgmVolume;
     }
 
+    // >>> sadmusic：停止/播放/協程 <<<
+    void StopSadNow()
+    {
+        if (sadRoutine != null)
+        {
+            StopCoroutine(sadRoutine);
+            sadRoutine = null;
+        }
+        if (sadSource != null) sadSource.Stop();
+
+        if (bgmSource != null)
+        {
+            if (!bgmSource.isPlaying)
+            {
+                bgmSource.clip = bgmClip;
+                bgmSource.loop = true;
+                bgmSource.volume = bgmVolume;
+                bgmSource.Play();
+            }
+            else
+            {
+                bgmSource.volume = bgmVolume;
+            }
+        }
+    }
+
+    void StartSadNow()
+    {
+        if (sadSource == null || sadMusic == null) return;
+        if (sadRoutine != null) { StopCoroutine(sadRoutine); sadRoutine = null; }
+        sadSource.Stop(); // 不重疊
+        sadRoutine = StartCoroutine(CoPlaySadMusic());
+    }
+
+    IEnumerator CoPlaySadMusic()
+    {
+        if (bgmSource == null || sadSource == null || sadMusic == null)
+        {
+            sadRoutine = null;
+            yield break;
+        }
+
+        // 淡出並暫停 BGM
+        float startVol = bgmSource.volume;
+        float t = 0f;
+        while (t < bgmFadeOutTime)
+        {
+            t += Time.unscaledDeltaTime;
+            bgmSource.volume = Mathf.Lerp(startVol, 0f, Mathf.Clamp01(t / bgmFadeOutTime));
+            yield return null;
+        }
+        bgmSource.volume = 0f;
+        bgmSource.Pause();
+
+        // 播放 sadmusic（獨立的 sadSource，不受 Pause 影響）
+        sadSource.clip = sadMusic;
+        sadSource.volume = sadMusicVolume;
+        sadSource.Play();
+
+        // 等待播畢 + 些微停頓
+        yield return new WaitWhile(() => sadSource.isPlaying);
+        yield return new WaitForSecondsRealtime(sadHoldExtra);
+
+        // 恢復 BGM（淡入）
+        bgmSource.UnPause();
+        t = 0f;
+        while (t < bgmFadeInTime)
+        {
+            t += Time.unscaledDeltaTime;
+            bgmSource.volume = Mathf.Lerp(0f, bgmVolume, Mathf.Clamp01(t / bgmFadeInTime));
+            yield return null;
+        }
+        bgmSource.volume = bgmVolume;
+
+        sadRoutine = null;
+    }
+
     // ===================== SFX & End Sequence =====================
     void PlayOneShot(AudioClip clip, float pitch = 1f, float volume = 1f)
     {
@@ -801,6 +1067,7 @@ public class Game_Logic : MonoBehaviour
         {
             case ResultType.Homerun:
                 PlayOneShot(sfxHit);
+                PlayOneShot(sfxCheer); // 歡呼更保險
                 StartCoroutine(CoPauseBGMWithFade(slowMoDuration + endHoldSeconds));
                 break;
 
@@ -815,10 +1082,12 @@ public class Game_Logic : MonoBehaviour
 
             case ResultType.Strikeout:
                 PlayOneShot(sfxCatch, pitchStrikeout);
+                StartSadNow();
                 break;
 
             case ResultType.Out:
                 PlayOneShot(sfxCatch, pitchOut);
+                StartSadNow();
                 break;
 
             case ResultType.Walk:
@@ -826,6 +1095,7 @@ public class Game_Logic : MonoBehaviour
                 break;
 
             case ResultType.InningOver:
+                if (ourScore < oppScore) StartSadNow(); // 半局結束若落後，保險再播
                 break;
         }
 
@@ -856,4 +1126,52 @@ public class Game_Logic : MonoBehaviour
         state = AtBatState.Complete;
         SetUIForState();
     }
+
+    // ===================== ★ 新增：立即停止所有音訊與重置結束 UI =====================
+    // 立刻停止所有音訊（含 OneShot）與相關協程，並把 BGM 回復到正常狀態
+    void StopAllAudioNow()
+    {
+        // 停掉所有協程（避免 BGM 淡入淡出 / 悲傷音樂協程在背景繼續）
+        StopAllCoroutines();
+        sadRoutine = null;
+
+        // 停 VO / SFX / SAD（PlayOneShot 會被 Stop() 一起停掉）
+        if (voice != null)    voice.Stop();
+        if (sfx != null)      sfx.Stop();
+        if (sadSource != null) sadSource.Stop();
+
+        // 恢復並確保 BGM 在正常音量與循環狀態
+        if (bgmSource != null)
+        {
+            bgmSource.volume = bgmVolume;
+            if (!bgmSource.isPlaying)
+            {
+                if (bgmClip != null)
+                {
+                    bgmSource.clip = bgmClip;
+                    bgmSource.loop = true;
+                    bgmSource.Play();
+                }
+            }
+        }
+    }
+
+    // 收掉結束面板與動畫，避免重開後殘留
+    void ResetEndUI()
+    {
+        if (endPanel != null) endPanel.SetActive(false);
+
+        if (endAnimator != null)
+        {
+            // 重置 Animator 的綁定與參數
+            endAnimator.Rebind();
+
+            // 只有在物件啟用且作用中時才允許呼叫 Update，避免警告
+            if (endAnimator.isActiveAndEnabled)
+            {
+                endAnimator.Update(0f);
+            }
+        }
+    }
+
 }
