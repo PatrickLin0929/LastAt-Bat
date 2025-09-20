@@ -182,6 +182,21 @@ public class Game_Logic : MonoBehaviour
     public float voDelayBetween = 0.6f;
     private bool isPitching = false;
 
+    // ===================== Fireworks =====================
+
+    // ===================== End Panel 顯示選項 =====================
+    [Header("End Panel Options")]
+    [Tooltip("全壘打時是否顯示 endPanel（預設 false = 不顯示）")]
+    public bool showEndPanelOnHomerun = false;
+
+    [Tooltip("全壘打時是否自動把 Detail 面板關閉（如果當下有打開）")]
+    public bool autoHideDetailOnHomerun = true;
+
+    [Header("Fireworks")]
+    public FireworksManager fireworks;          // 拖進場景上的 FX_Fireworks（含 FireworksManager）
+    [Range(1, 48)] public int fireworksCount = 10;
+    public float fireworksInterval = 0.15f;
+
     // ========= VO 工具方法 =========
     void Speak(AudioClip[] bank, float pitch = 1f, float volume = 1f)
     {
@@ -550,7 +565,6 @@ public class Game_Logic : MonoBehaviour
         string resultZh = (currentChoice == Choice.Take) ? ExecuteTake() : ExecuteSwing();
 
         AppendRecordLine(pitchNumber, thisPitchZh, actionZh, resultZh);
-
         if (outs >= 3)
         {
             string msg = $"半局結束 — 三出局。比數 {ourScore}:{oppScore}";
@@ -627,7 +641,7 @@ public class Game_Logic : MonoBehaviour
 
         if (swingType == 0) // 全力
         {
-            if (r < 0.20f) { SingleAdvance(); outcomeInfo.text = "安打（全力）";
+            if (r < 0.2f) { SingleAdvance(); outcomeInfo.text = "安打（全力）";
                 PlayOneShot(sfxHit);
                 Speak(voHit);
                 Speak(voPushRunner);
@@ -646,13 +660,13 @@ public class Game_Logic : MonoBehaviour
                 FinishAtBat(ResultType.Homerun, $"比數 {ourScore}:{oppScore}");
                 ResetCountForNextBatter(); return "全壘打"; }
 
-            else if (r < 0.64f) { outs++; outcomeInfo.text = "出局（全力）";
+            else if (r < 0.44f) { outs++; outcomeInfo.text = "出局（全力）";
                 Speak(voOut);
                 StartSadNow(); // 出局觸發悲傷音樂
                 FinishAtBat(ResultType.Out, $"出局數：{outs}");
                 ResetCountForNextBatter(); return "出局"; }
 
-            else if (r < 0.88f) { strikes++; outcomeInfo.text = "揮空";
+            else if (r < 0.68f) { strikes++; outcomeInfo.text = "揮空";
                 PlayOneShot(sfxCatch, pitchSwingMiss);
                 Speak(voSwingMiss);
                 CheckStrikeout(); UpdateCountLights(); SpeakCountCommon(); return "揮空"; }
@@ -683,13 +697,13 @@ public class Game_Logic : MonoBehaviour
                 FinishAtBat(ResultType.Homerun, $"比數 {ourScore}:{oppScore}");
                 ResetCountForNextBatter(); return "全壘打"; }
 
-            else if (r < 0.68f) { outs++; outcomeInfo.text = "出局（普通）";
+            else if (r < 0.48f) { outs++; outcomeInfo.text = "出局（普通）";
                 Speak(voOut);
                 StartSadNow(); // 出局觸發悲傷音樂
                 FinishAtBat(ResultType.Out, $"出局數：{outs}");
                 ResetCountForNextBatter(); return "出局"; }
 
-            else if (r < 0.85f) { strikes++; outcomeInfo.text = "揮空";
+            else if (r < 0.65f) { strikes++; outcomeInfo.text = "揮空";
                 PlayOneShot(sfxCatch, pitchSwingMiss);
                 Speak(voSwingMiss);
                 CheckStrikeout(); UpdateCountLights(); SpeakCountCommon(); return "揮空"; }
@@ -722,14 +736,28 @@ public class Game_Logic : MonoBehaviour
 
     void Homerun()
     {
-        int runs = 1;
-        if (on1B) { runs++; on1B = false; }
-        if (on2B) { runs++; on2B = false; }
-        if (on3B) { runs++; on3B = false; }
-        ourScore += runs;
+            int runs = 1;
+            if (on1B) { runs++; on1B = false; }
+            if (on2B) { runs++; on2B = false; }
+            if (on3B) { runs++; on3B = false; }
+            ourScore += runs;
 
-        if (uiRunner != null)
-            uiRunner.TeleportAdvance(0, 4);   // 全壘打：本壘->得分（繞四個壘）
+            if (uiRunner != null)
+                uiRunner.TeleportAdvance(0, 4);   // 全壘打：本壘->得分（繞四個壘）
+
+                // ★ 觸發煙火（一般全壘打）
+            if (fireworks != null)
+                fireworks.PlaySequence(fireworksCount, fireworksInterval);
+
+            if (fireworks != null)
+        {
+            Debug.Log("[HR] Fireworks PlaySequence triggered.");
+            fireworks.PlaySequence(fireworksCount, fireworksInterval);
+        }
+        else
+        {
+            Debug.LogWarning("[HR] fireworks == null，請把場景的 FX_Fireworks 拖到 Game_Logic.fireworks 欄位");
+        }
     }
 
     void WalkAdvance()
@@ -1049,7 +1077,7 @@ public class Game_Logic : MonoBehaviour
         sfx.volume = oldVol;
     }
 
-    void FinishAtBat(ResultType type, string subtitle)
+        void FinishAtBat(ResultType type, string subtitle)
     {
         string title = type switch
         {
@@ -1063,17 +1091,23 @@ public class Game_Logic : MonoBehaviour
             _ => ""
         };
 
+        // 先做各結果的聲音/BGM
         switch (type)
         {
             case ResultType.Homerun:
                 PlayOneShot(sfxHit);
-                PlayOneShot(sfxCheer); // 歡呼更保險
+                PlayOneShot(sfxCheer);
                 StartCoroutine(CoPauseBGMWithFade(slowMoDuration + endHoldSeconds));
+
+                // ★ 如有開啟，關閉 Detail 面板（避免擋畫面）
+                if (autoHideDetailOnHomerun && detailInfoCanvas != null)
+                    detailInfoCanvas.SetActive(false);
                 break;
 
             case ResultType.WalkOffWin:
                 PlayOneShot(sfxCheer);
                 StartCoroutine(CoPauseBGMWithFade(slowMoDuration + endHoldSeconds));
+                if (fireworks != null) fireworks.PlayBigShow();
                 break;
 
             case ResultType.Hit:
@@ -1095,14 +1129,20 @@ public class Game_Logic : MonoBehaviour
                 break;
 
             case ResultType.InningOver:
-                if (ourScore < oppScore) StartSadNow(); // 半局結束若落後，保險再播
+                if (ourScore < oppScore) StartSadNow();
                 break;
         }
 
-        StartCoroutine(CoEndSequence(title, subtitle));
-    }
+    // ★ 改：把「是否顯示面板」變成參數帶進去
+    bool showPanel = true;
+    if (type == ResultType.Homerun && !showEndPanelOnHomerun)
+        showPanel = false;
 
-    IEnumerator CoEndSequence(string title, string subtitle)
+    StartCoroutine(CoEndSequence(title, subtitle, showPanel));
+}
+
+
+    IEnumerator CoEndSequence(string title, string subtitle, bool showPanel = true)
     {
         if (endPanel != null)
         {
