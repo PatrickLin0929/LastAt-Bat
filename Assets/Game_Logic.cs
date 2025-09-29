@@ -57,10 +57,13 @@ public class Game_Logic : MonoBehaviour
     public Animator   endAnimator;
     public string     endTriggerName = "Show";
 
+    [Header("SFX Players & Clips")]
     public AudioSource sfx;      // SFX player (AudioSource)
     public AudioClip sfxCatch;   // 「接到/揮空/好壞球」等通用音
     public AudioClip sfxCheer;   // 歡呼
-    public AudioClip sfxHit;     // 打到球
+    public AudioClip sfxHit;     // ★打到球（命中）音效：請在 Inspector 綁定你的 hit
+    [Tooltip("若 sfxHit 為空，會嘗試從 Resources.Load 這個路徑載入（可選）")]
+    public string hitClipResourcePath = "Sound/hit";
     public AudioClip sfxStart;   // 開場
 
     [Header("SFX 音高（可在 Inspector 調整）")]
@@ -97,6 +100,13 @@ public class Game_Logic : MonoBehaviour
     // ===================== 跑壘 UI（整合 UIRunnerQuick） =====================
     [Header("Runner UI")]
     public UIRunnerQuick uiRunner;      // 把 InfieldPanel 上的 UIRunnerQuick 拖進來
+
+    // ===================== 背景切換（新增） =====================
+    [Header("Background Switch")]
+    public Image  backgroundImage;   // 指到 Hierarchy 的「Background」（有 Image 元件）
+    public Sprite bgBaseball;        // 原本背景（例如：baseball_picture）
+    public Sprite bgFirework;        // 全壘打時的煙火背景（例如：baseball_picture_firework）
+    public Sprite bgSadscene;        // 輸球時的悲傷背景（例如：baseball_picture_sadscene）
 
     // ===================== 狀態 =====================
     private enum Choice { None, Swing, Take }
@@ -182,8 +192,6 @@ public class Game_Logic : MonoBehaviour
     public float voDelayBetween = 0.6f;
     private bool isPitching = false;
 
-    // ===================== Fireworks =====================
-
     // ===================== End Panel 顯示選項 =====================
     [Header("End Panel Options")]
     [Tooltip("全壘打時是否顯示 endPanel（預設 false = 不顯示）")]
@@ -192,6 +200,7 @@ public class Game_Logic : MonoBehaviour
     [Tooltip("全壘打時是否自動把 Detail 面板關閉（如果當下有打開）")]
     public bool autoHideDetailOnHomerun = true;
 
+    // ===================== Fireworks =====================
     [Header("Fireworks")]
     public FireworksManager fireworks;          // 拖進場景上的 FX_Fireworks（含 FireworksManager）
     [Range(1, 48)] public int fireworksCount = 10;
@@ -245,6 +254,13 @@ public class Game_Logic : MonoBehaviour
 
     void Start()
     {
+        // （可選）自動載入 Resources/Sound/hit.mp3 作為 sfxHit 後備方案
+        if (sfxHit == null && !string.IsNullOrEmpty(hitClipResourcePath))
+        {
+            var maybe = Resources.Load<AudioClip>(hitClipResourcePath);
+            if (maybe != null) sfxHit = maybe;
+        }
+
         if (!ValidateBindings()) return;
 
         if (tryAutoWire)
@@ -301,6 +317,23 @@ public class Game_Logic : MonoBehaviour
             sadSource.volume = 1f;
         }
 
+        // ---------- 背景初始化（新增） ----------
+        if (backgroundImage == null)
+        {
+            var bgGO = GameObject.Find("Background");
+            if (bgGO != null) backgroundImage = bgGO.GetComponent<Image>();
+        }
+        if (backgroundImage != null && bgBaseball == null)
+        {
+            // 若未設定原圖，取當前 Background 上的圖當作原圖
+            bgBaseball = backgroundImage.sprite;
+        }
+        if (backgroundImage != null && bgBaseball != null)
+        {
+            backgroundImage.sprite = bgBaseball; // 先套回原圖
+        }
+        // --------------------------------------
+
         GenerateNewInning();
         AlignRecordAreaToTitle();
     }
@@ -326,6 +359,10 @@ public class Game_Logic : MonoBehaviour
         if (closeDetailButton == null)   { Debug.LogError("Close Button 未指定"); ok = false; }
         if (recordTable == null)         { Debug.LogError("Record Table 未指定"); ok = false; }
         if (recordScrollView == null)    { Debug.LogError("Record Scroll View 未指定"); ok = false; }
+
+        if (sfx == null)                 { Debug.LogError("SFX AudioSource 未指定"); }
+        if (sfxHit == null)              { Debug.LogWarning("sfxHit 尚未指定；請在 Inspector 綁定 hit 音檔，或把檔案放在 Resources/Sound/hit"); }
+
         return ok;
     }
 
@@ -337,8 +374,15 @@ public class Game_Logic : MonoBehaviour
         ResetEndUI();
         isPitching = false;
 
+        // ★ 清空上一局可能殘留的煙火粒子
+        ResetFireworksNow();
+
         // ★ 保留：把悲傷音樂關掉並恢復 BGM（雙保險）
         StopSadNow();
+
+        // ★ 重置背景為原本的球場圖（新增）
+        if (backgroundImage != null && bgBaseball != null)
+            backgroundImage.sprite = bgBaseball;
 
         inningOver  = false;
 
@@ -394,6 +438,10 @@ public class Game_Logic : MonoBehaviour
         SetUIForState();
         outcomeInfo.text = finalLine;
 
+        // ★ 輸球就換成悲傷背景（新增）
+        if (backgroundImage != null && ourScore < oppScore && bgSadscene != null)
+            backgroundImage.sprite = bgSadscene;
+
         if (detailInfoCanvas != null)
             detailInfoCanvas.SetActive(true);
 
@@ -440,7 +488,7 @@ public class Game_Logic : MonoBehaviour
 
             // 第一次按：從「開始遊戲」切到正式出手狀態
             gameStarted = true;
-            SetConfirmLabel("上吧！！");
+            SetConfirmLabel("Go！！");
             SetStrategyButtonsVisible(true);
 
             // 重新套用互動狀態
@@ -633,7 +681,7 @@ public class Game_Logic : MonoBehaviour
         }
     }
 
-    // ----- Swing 機率（保持你的設定，並加入語音） -----
+    // ----- Swing 機率 -----
     string ExecuteSwing()
     {
         int swingType = (swingTypeDropdown != null) ? swingTypeDropdown.value : 1; // 0=全力, 1=普通
@@ -641,77 +689,101 @@ public class Game_Logic : MonoBehaviour
 
         if (swingType == 0) // 全力
         {
-            if (r < 0.2f) { SingleAdvance(); outcomeInfo.text = "安打（全力）";
-                PlayOneShot(sfxHit);
+            if (r < 0.20f)
+            {
+                SingleAdvance(); outcomeInfo.text = "安打（全力）";
+                PlayOneShot(sfxHit);                    // ★命中：播放 hit
                 Speak(voHit);
                 Speak(voPushRunner);
                 SpeakBasesIfLoaded();
                 SpeakScoreSwing();
 
                 FinishAtBat(ResultType.Hit, $"跑者前進。比數 {ourScore}:{oppScore}");
-                ResetCountForNextBatter(); return "安打"; }
-
-            else if (r < 0.28f) { Homerun(); outcomeInfo.text = "全壘打（全力）";
-                PlayOneShot(sfxHit);
-                PlayOneShot(sfxCheer); // 歡呼
+                ResetCountForNextBatter(); return "安打";
+            }
+            else if (r < 0.28f)
+            {
+                Homerun(); outcomeInfo.text = "全壘打（全力）";
+                PlayOneShot(sfxHit);                    // ★命中：播放 hit
+                PlayOneShot(sfxCheer);
                 Speak(voHomerun);
                 SpeakScoreSwing();
 
                 FinishAtBat(ResultType.Homerun, $"比數 {ourScore}:{oppScore}");
-                ResetCountForNextBatter(); return "全壘打"; }
-
-            else if (r < 0.44f) { outs++; outcomeInfo.text = "出局（全力）";
+                ResetCountForNextBatter(); return "全壘打";
+            }
+            else if (r < 0.44f)
+            {
+                outs++; outcomeInfo.text = "出局（全力）";
                 Speak(voOut);
-                StartSadNow(); // 出局觸發悲傷音樂
+                StartSadNow();
                 FinishAtBat(ResultType.Out, $"出局數：{outs}");
-                ResetCountForNextBatter(); return "出局"; }
-
-            else if (r < 0.68f) { strikes++; outcomeInfo.text = "揮空";
+                ResetCountForNextBatter(); return "出局";
+            }
+            else if (r < 0.68f)
+            {
+                strikes++; outcomeInfo.text = "揮空";
                 PlayOneShot(sfxCatch, pitchSwingMiss);
                 Speak(voSwingMiss);
-                CheckStrikeout(); UpdateCountLights(); SpeakCountCommon(); return "揮空"; }
-
-            else { if (strikes < 2) strikes++; outcomeInfo.text = "界外";
+                CheckStrikeout(); UpdateCountLights(); SpeakCountCommon(); return "揮空";
+            }
+            else
+            {
+                if (strikes < 2) strikes++;
+                outcomeInfo.text = "界外";
                 PlayOneShot(sfxCatch, pitchFoul);
                 Speak(voFoul);
-                UpdateCountLights(); SpeakCountCommon(); return "界外"; }
+                UpdateCountLights(); SpeakCountCommon(); return "界外";
+            }
         }
         else // 普通
         {
-            if (r < 0.24f) { SingleAdvance(); outcomeInfo.text = "安打（普通）";
-                PlayOneShot(sfxHit);
+            if (r < 0.24f)
+            {
+                SingleAdvance(); outcomeInfo.text = "安打（普通）";
+                PlayOneShot(sfxHit);                    // ★命中：播放 hit
                 Speak(voHit);
                 Speak(voPushRunner);
                 SpeakBasesIfLoaded();
                 SpeakScoreSwing();
 
                 FinishAtBat(ResultType.Hit, $"跑者前進。比數 {ourScore}:{oppScore}");
-                ResetCountForNextBatter(); return "安打"; }
-
-            else if (r < 0.29f) { Homerun(); outcomeInfo.text = "全壘打（普通）";
-                PlayOneShot(sfxHit);
-                PlayOneShot(sfxCheer); // 歡呼
+                ResetCountForNextBatter(); return "安打";
+            }
+            else if (r < 0.29f)
+            {
+                Homerun(); outcomeInfo.text = "全壘打（普通）";
+                PlayOneShot(sfxHit);                    // ★命中：播放 hit
+                PlayOneShot(sfxCheer);
                 Speak(voHomerun);
                 SpeakScoreSwing();
 
                 FinishAtBat(ResultType.Homerun, $"比數 {ourScore}:{oppScore}");
-                ResetCountForNextBatter(); return "全壘打"; }
-
-            else if (r < 0.48f) { outs++; outcomeInfo.text = "出局（普通）";
+                ResetCountForNextBatter(); return "全壘打";
+            }
+            else if (r < 0.48f)
+            {
+                outs++; outcomeInfo.text = "出局（普通）";
                 Speak(voOut);
-                StartSadNow(); // 出局觸發悲傷音樂
+                StartSadNow();
                 FinishAtBat(ResultType.Out, $"出局數：{outs}");
-                ResetCountForNextBatter(); return "出局"; }
-
-            else if (r < 0.65f) { strikes++; outcomeInfo.text = "揮空";
+                ResetCountForNextBatter(); return "出局";
+            }
+            else if (r < 0.65f)
+            {
+                strikes++; outcomeInfo.text = "揮空";
                 PlayOneShot(sfxCatch, pitchSwingMiss);
                 Speak(voSwingMiss);
-                CheckStrikeout(); UpdateCountLights(); SpeakCountCommon(); return "揮空"; }
-
-            else { if (strikes < 2) strikes++; outcomeInfo.text = "界外";
+                CheckStrikeout(); UpdateCountLights(); SpeakCountCommon(); return "揮空";
+            }
+            else
+            {
+                if (strikes < 2) strikes++;
+                outcomeInfo.text = "界外";
                 PlayOneShot(sfxCatch, pitchFoul);
                 Speak(voFoul);
-                UpdateCountLights(); SpeakCountCommon(); return "界外"; }
+                UpdateCountLights(); SpeakCountCommon(); return "界外";
+            }
         }
     }
 
@@ -736,20 +808,21 @@ public class Game_Logic : MonoBehaviour
 
     void Homerun()
     {
-            int runs = 1;
-            if (on1B) { runs++; on1B = false; }
-            if (on2B) { runs++; on2B = false; }
-            if (on3B) { runs++; on3B = false; }
-            ourScore += runs;
+        int runs = 1;
+        if (on1B) { runs++; on1B = false; }
+        if (on2B) { runs++; on2B = false; }
+        if (on3B) { runs++; on3B = false; }
+        ourScore += runs;
 
-            if (uiRunner != null)
-                uiRunner.TeleportAdvance(0, 4);   // 全壘打：本壘->得分（繞四個壘）
+        if (uiRunner != null)
+            uiRunner.TeleportAdvance(0, 4);   // 全壘打：本壘->得分（繞四個壘）
 
-                // ★ 觸發煙火（一般全壘打）
-            if (fireworks != null)
-                fireworks.PlaySequence(fireworksCount, fireworksInterval);
+        // ★ 全壘打 → 換成煙火背景（新增）
+        if (backgroundImage != null && bgFirework != null)
+            backgroundImage.sprite = bgFirework;
 
-            if (fireworks != null)
+        // ★ 觸發煙火（一般全壘打）
+        if (fireworks != null)
         {
             Debug.Log("[HR] Fireworks PlaySequence triggered.");
             fireworks.PlaySequence(fireworksCount, fireworksInterval);
@@ -1077,7 +1150,7 @@ public class Game_Logic : MonoBehaviour
         sfx.volume = oldVol;
     }
 
-        void FinishAtBat(ResultType type, string subtitle)
+    void FinishAtBat(ResultType type, string subtitle)
     {
         string title = type switch
         {
@@ -1095,7 +1168,7 @@ public class Game_Logic : MonoBehaviour
         switch (type)
         {
             case ResultType.Homerun:
-                PlayOneShot(sfxHit);
+                PlayOneShot(sfxHit);   // ★命中：播放 hit
                 PlayOneShot(sfxCheer);
                 StartCoroutine(CoPauseBGMWithFade(slowMoDuration + endHoldSeconds));
 
@@ -1111,7 +1184,7 @@ public class Game_Logic : MonoBehaviour
                 break;
 
             case ResultType.Hit:
-                PlayOneShot(sfxHit);
+                PlayOneShot(sfxHit);   // ★命中：播放 hit
                 break;
 
             case ResultType.Strikeout:
@@ -1133,14 +1206,13 @@ public class Game_Logic : MonoBehaviour
                 break;
         }
 
-    // ★ 改：把「是否顯示面板」變成參數帶進去
-    bool showPanel = true;
-    if (type == ResultType.Homerun && !showEndPanelOnHomerun)
-        showPanel = false;
+        // 是否顯示面板
+        bool showPanel = true;
+        if (type == ResultType.Homerun && !showEndPanelOnHomerun)
+            showPanel = false;
 
-    StartCoroutine(CoEndSequence(title, subtitle, showPanel));
-}
-
+        StartCoroutine(CoEndSequence(title, subtitle, showPanel));
+    }
 
     IEnumerator CoEndSequence(string title, string subtitle, bool showPanel = true)
     {
@@ -1167,8 +1239,7 @@ public class Game_Logic : MonoBehaviour
         SetUIForState();
     }
 
-    // ===================== ★ 新增：立即停止所有音訊與重置結束 UI =====================
-    // 立刻停止所有音訊（含 OneShot）與相關協程，並把 BGM 回復到正常狀態
+    // ===================== 立即停止所有音訊與重置結束 UI =====================
     void StopAllAudioNow()
     {
         // 停掉所有協程（避免 BGM 淡入淡出 / 悲傷音樂協程在背景繼續）
@@ -1203,10 +1274,8 @@ public class Game_Logic : MonoBehaviour
 
         if (endAnimator != null)
         {
-            // 重置 Animator 的綁定與參數
             endAnimator.Rebind();
 
-            // 只有在物件啟用且作用中時才允許呼叫 Update，避免警告
             if (endAnimator.isActiveAndEnabled)
             {
                 endAnimator.Update(0f);
@@ -1214,4 +1283,16 @@ public class Game_Logic : MonoBehaviour
         }
     }
 
+    // ===================== 重設煙火（清除所有粒子） =====================
+    void ResetFireworksNow()
+    {
+        if (fireworks == null) return;
+
+        var allPS = fireworks.GetComponentsInChildren<ParticleSystem>(true);
+        foreach (var ps in allPS)
+        {
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            ps.Clear(true);
+        }
+    }
 }
