@@ -20,6 +20,11 @@ public class Game_Logic : MonoBehaviour
     public Button   newGameButton;
 
     [Header("壘包圖示 (UI Image)")]
+
+    [Header("Base Lights (optional)")]
+    public BaseLight baseLight1B;
+    public BaseLight baseLight2B;
+    public BaseLight baseLight3B;
     public GameObject base1B;
     public GameObject base2B;
     public GameObject base3B;
@@ -126,6 +131,9 @@ public class Game_Logic : MonoBehaviour
     private bool inningOver = false;
     private int  pitchNumber = 0;
 
+    // ★★★ 新增：避免非第3好球卻重播三振語音的旗標
+    private bool strikeoutHandled = false;
+
     // 中文球種
     private string        pitcherType  = "快速球";
     private readonly string[] pitchTypesZh = { "快速球", "滑球", "變速球", "曲球" };
@@ -197,6 +205,9 @@ public class Game_Logic : MonoBehaviour
     [Tooltip("全壘打時是否顯示 endPanel（預設 false = 不顯示）")]
     public bool showEndPanelOnHomerun = false;
 
+    [Header("Pitch-by-Pitch (逐球) 顯示")]
+    [Tooltip("輸球時是否仍自動顯示逐球（Detail）畫面。預設 false = 不顯示，只保留場上畫面。")]
+    public bool showPitchByPitchOnLoss = false;
     [Tooltip("全壘打時是否自動把 Detail 面板關閉（如果當下有打開）")]
     public bool autoHideDetailOnHomerun = true;
 
@@ -335,6 +346,15 @@ public class Game_Logic : MonoBehaviour
         // --------------------------------------
 
         GenerateNewInning();
+
+        // 讓老欄位也能沿用：把 base1B/2B/3B 指向 infieldPanel 的 Base_1/2/3
+// <— 這步請在 Inspector 先把 GameObject 指到 Base_1 / Base_2 / Base_3
+
+// 自動抓同物件上的 BaseLight（若你沒手動拖）
+    if (baseLight1B == null && base1B != null) baseLight1B = base1B.GetComponent<BaseLight>();
+    if (baseLight2B == null && base2B != null) baseLight2B = base2B.GetComponent<BaseLight>();
+    if (baseLight3B == null && base3B != null) baseLight3B = base3B.GetComponent<BaseLight>();
+
         AlignRecordAreaToTitle();
     }
 
@@ -391,6 +411,9 @@ public class Game_Logic : MonoBehaviour
         outs        = 2;
         pitchNumber = 0;
 
+        // ★ 重置三振旗標
+        strikeoutHandled = false;
+
         ourScore = Random.Range(3, 6);
         oppScore = ourScore + Random.Range(1, 3);
 
@@ -438,18 +461,23 @@ public class Game_Logic : MonoBehaviour
         SetUIForState();
         outcomeInfo.text = finalLine;
 
-        // ★ 輸球就換成悲傷背景（新增）
-        if (backgroundImage != null && ourScore < oppScore && bgSadscene != null)
+        bool lost = (ourScore < oppScore);
+
+        // 輸球就換成悲傷背景（原邏輯保留）
+        if (backgroundImage != null && lost && bgSadscene != null)
             backgroundImage.sprite = bgSadscene;
 
+        // ❗❗ 這裡改成：只有在「不是輸球」或你有特別開 showPitchByPitchOnLoss 時，才自動顯示逐球面板
         if (detailInfoCanvas != null)
-            detailInfoCanvas.SetActive(true);
+            detailInfoCanvas.SetActive(!lost || showPitchByPitchOnLoss);
 
+        // 場上元素
         if (uiRunner != null)
-            uiRunner.HideRunner();   // 收場隱藏跑者
+            uiRunner.HideRunner();   // 收場隱藏跑者（保留原邏輯）
 
         AutoScrollToBottom();
     }
+
 
     void SetUIForState()
     {
@@ -854,6 +882,7 @@ public class Game_Logic : MonoBehaviour
     {
         strikes = 0;
         balls   = 0;
+        strikeoutHandled = false; // ★ 重置，下一位打者才可能再次三振
         currentChoice = Choice.None;
         ResetChoiceHighlight();
         UpdateCountLights();
@@ -861,8 +890,14 @@ public class Game_Logic : MonoBehaviour
 
     void CheckStrikeout()
     {
-        if (strikes >= 3)
+        // 防呆：避免任何路徑把 strikes 加超過 3
+        if (strikes > 3) strikes = 3;
+
+        // ★ 只有在「剛好累積到 3 好球」且尚未處理過時，才視為三振
+        if (strikes == 3 && !strikeoutHandled)
         {
+            strikeoutHandled = true;
+
             outs++;
             outcomeInfo.text = "三振出局！";
             // 三振語音 + 悲傷音樂
@@ -870,6 +905,11 @@ public class Game_Logic : MonoBehaviour
             StartSadNow();
             FinishAtBat(ResultType.Strikeout, $"出局數：{outs}");
             ResetCountForNextBatter();
+        }
+        else
+        {
+            // 未達三好球（或已處理過），只更新計數燈等，不做三振處理
+            UpdateCountLights();
         }
     }
 
@@ -901,10 +941,17 @@ public class Game_Logic : MonoBehaviour
 
     void UpdateBaseIcons()
     {
-        SetBaseColor(base1B, on1B ? Color.red : Color.white);
-        SetBaseColor(base2B, on2B ? Color.red : Color.white);
-        SetBaseColor(base3B, on3B ? Color.red : Color.white);
+        // 有 BaseLight 就用閃爍；沒有就用原本換色（白/紅）
+        if (baseLight1B != null) baseLight1B.SetActive(on1B);
+        else SetBaseColor(base1B, on1B ? Color.red : Color.white);
+
+        if (baseLight2B != null) baseLight2B.SetActive(on2B);
+        else SetBaseColor(base2B, on2B ? Color.red : Color.white);
+
+        if (baseLight3B != null) baseLight3B.SetActive(on3B);
+        else SetBaseColor(base3B, on3B ? Color.red : Color.white);
     }
+
 
     void SetBaseColor(GameObject go, Color c)
     {
