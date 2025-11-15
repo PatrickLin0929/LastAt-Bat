@@ -10748,7 +10748,7 @@ MonoBehaviour:
   voBall:
   - {fileID: 8300000, guid: f93b48ae23ab7400eba8df97d51556bc, type: 3}
   voStrikeLooking:
-  - {fileID: 8300000, guid: 85b878a2b766b4f558277bc7ff05e86c, type: 3}
+  - {fileID: 8300000, guid: 47aaefece4f1a4dc8a58f9cb2439f71a, type: 3}
   voSwingMiss:
   - {fileID: 8300000, guid: de0d77fdd28954a5d9673a3620367175, type: 3}
   voFoul:
@@ -10787,6 +10787,24 @@ MonoBehaviour:
   - {fileID: 8300000, guid: a792d3a1c827e48c7959c9e5f2f1e879, type: 3}
   voCountThreeBalls:
   - {fileID: 8300000, guid: 4716febc228b94801bde1263be8eeb4c, type: 3}
+  segNow: {fileID: 8300000, guid: 119e647f280c14145a03dbc35d436078, type: 3}
+  segBi: {fileID: 8300000, guid: 5881cb3ac88804421be66b5f6ae5ab5c, type: 3}
+  segCurrentlyBehind: {fileID: 8300000, guid: 07bab83fddbc1427ea01c0902e3ae148, type: 3}
+  segFen: {fileID: 8300000, guid: 34bdb7c8b008b48769d817cf362ee8b8, type: 3}
+  segLastTwoOut: {fileID: 8300000, guid: 820d31bdf072941ff92822b8eab055e3, type: 3}
+  segCanComeback: {fileID: 0}
+  segNumbers:
+  - {fileID: 8300000, guid: 837e799e5214b4ecf8280e8533cd6511, type: 3}
+  - {fileID: 8300000, guid: 7b04fc0e92530431ba11729e5e5e8d73, type: 3}
+  - {fileID: 8300000, guid: 6825dbf3a9d8b48a187008c06786e5b6, type: 3}
+  - {fileID: 8300000, guid: b8dee71cc2ea144d59076d6c4938dfbd, type: 3}
+  - {fileID: 8300000, guid: dc511fbea49f64ed5814e8e198a44865, type: 3}
+  - {fileID: 8300000, guid: 24475a8e4f32249ba8d69254b191016c, type: 3}
+  - {fileID: 8300000, guid: 526059e6412d44d27b65499759c7156a, type: 3}
+  - {fileID: 8300000, guid: 06af89beb53b64bb3a2bb640fa1e81df, type: 3}
+  - {fileID: 8300000, guid: e0e84dbae228946728ee14a2cb7caced, type: 3}
+  - {fileID: 8300000, guid: 74e1dd8696ed94f8b9c85289617fe9dd, type: 3}
+  - {fileID: 8300000, guid: 1def9d29a12f94fbda4460e7f6503b3d, type: 3}
   voDelayBetween: 0.6
   showEndPanelOnHomerun: 0
   showPitchByPitchOnLoss: 0
@@ -11398,8 +11416,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1689716014}
   m_HandleRect: {fileID: 1689716013}
   m_Direction: 2
-  m_Value: 1.0000002
-  m_Size: 0.6556897
+  m_Value: 1
+  m_Size: 0.65568966
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:

@@ -194,6 +194,23 @@ public class Game_Logic : MonoBehaviour
     public AudioClip[] voCountTwoBalls;   // 兩壞球
     public AudioClip[] voCountThreeBalls; // 三壞球
 
+    // ======= 新增：開場比分說明用的片段語音 =======
+    [Header("Commentator Intro (Score Line)")]
+    [Tooltip("『現在是』")]
+    public AudioClip segNow;                  // 現在是
+    [Tooltip("『比』")]
+    public AudioClip segBi;                   // 比
+    [Tooltip("『目前落後』")]
+    public AudioClip segCurrentlyBehind;      // 目前落後
+    [Tooltip("『分』")]
+    public AudioClip segFen;                  // 分
+    [Tooltip("『最後一棒打者兩出局』")]
+    public AudioClip segLastTwoOut;           // 最後一棒打者兩出局
+    [Tooltip("『看能否扭轉局面？』")]
+    public AudioClip segCanComeback;          // 看能否扭轉局面？
+    [Tooltip("數字語音：index 0 對應 0、1 對應 1...")]
+    public AudioClip[] segNumbers;            // 0~9 或 1~9 的數字
+
     // ========== VO 播報節奏控制 ==========
     [Header("Voice Timing")]
     [Tooltip("球種播報與結果播報之間的延遲（秒）")]
@@ -348,12 +365,12 @@ public class Game_Logic : MonoBehaviour
         GenerateNewInning();
 
         // 讓老欄位也能沿用：把 base1B/2B/3B 指向 infieldPanel 的 Base_1/2/3
-// <— 這步請在 Inspector 先把 GameObject 指到 Base_1 / Base_2 / Base_3
+        // <— 這步請在 Inspector 先把 GameObject 指到 Base_1 / Base_2 / Base_3
 
-// 自動抓同物件上的 BaseLight（若你沒手動拖）
-    if (baseLight1B == null && base1B != null) baseLight1B = base1B.GetComponent<BaseLight>();
-    if (baseLight2B == null && base2B != null) baseLight2B = base2B.GetComponent<BaseLight>();
-    if (baseLight3B == null && base3B != null) baseLight3B = base3B.GetComponent<BaseLight>();
+        // 自動抓同物件上的 BaseLight（若你沒手動拖）
+        if (baseLight1B == null && base1B != null) baseLight1B = base1B.GetComponent<BaseLight>();
+        if (baseLight2B == null && base2B != null) baseLight2B = base2B.GetComponent<BaseLight>();
+        if (baseLight3B == null && base3B != null) baseLight3B = base3B.GetComponent<BaseLight>();
 
         AlignRecordAreaToTitle();
     }
@@ -452,6 +469,9 @@ public class Game_Logic : MonoBehaviour
 
         // 起始隱藏跑者
         if (uiRunner != null) uiRunner.HideRunner();
+
+        // >>> 新增：播放開場比分解說語音（現在是 X 比 Y，目前 Z 分落後，最後一棒打者兩出局，看能否扭轉局面？）
+        StartCoroutine(CoPlayIntroSentence());
     }
 
     void EndInning(string finalLine)
@@ -1341,5 +1361,66 @@ public class Game_Logic : MonoBehaviour
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             ps.Clear(true);
         }
+    }
+
+    // ===================== 開場比分說明（組合語音） =====================
+
+    // 播一個 clip，並等它播完一點點空隙
+    IEnumerator CoPlayClip(AudioClip clip, float gap = 0.05f)
+    {
+        if (voice == null || clip == null) yield break;
+
+        voice.PlayOneShot(clip);
+        yield return new WaitForSeconds(clip.length + gap);
+    }
+
+    // 播數字 n（用 segNumbers 查表；如果超過陣列就一位一位唸）
+    IEnumerator CoPlayNumber(int value)
+    {
+        if (voice == null || segNumbers == null || segNumbers.Length == 0)
+            yield break;
+
+        // 直接有對應的就用
+        if (value >= 0 && value < segNumbers.Length && segNumbers[value] != null)
+        {
+            yield return CoPlayClip(segNumbers[value]);
+        }
+        else
+        {
+            // 例如 12 -> 播「1」「2」
+            string s = value.ToString();
+            foreach (char ch in s)
+            {
+                int d = ch - '0';
+                if (d >= 0 && d < segNumbers.Length && segNumbers[d] != null)
+                {
+                    yield return CoPlayClip(segNumbers[d]);
+                }
+            }
+        }
+    }
+
+    // 組成：「現在是 X 比 Y，目前 Z 分落後，最後一棒打者兩出局，看能否扭轉局面？」
+    IEnumerator CoPlayIntroSentence()
+    {
+        int xScore = oppScore;           // X：對手分數
+        int yScore = ourScore;           // Y：我方分數
+        int diff   = Mathf.Max(0, xScore - yScore);   // Z：落後分數
+
+        if (diff <= 0) yield break;      // 不落後就不播這句（可依需求拿掉）
+
+        // 稍微等一下，避免和 sfxStart 擠在一起
+        yield return new WaitForSeconds(0.2f);
+
+        // 「現在是 X 比 Y，目前 Z 分落後，最後一棒打者兩出局，看能否扭轉局面？」
+        yield return CoPlayClip(segNow);                 // 現在是
+        yield return CoPlayNumber(xScore);               // X
+        yield return CoPlayClip(segBi);                  // 比
+        yield return CoPlayNumber(yScore);               // Y
+        yield return CoPlayClip(segCurrentlyBehind);     // 目前落後
+        yield return CoPlayNumber(diff);                 // Z
+        yield return CoPlayClip(segFen);                 // 分
+        yield return CoPlayClip(segLastTwoOut);          // 最後一棒打者兩出局
+        yield return CoPlayClip(segCanComeback);         // 看能否扭轉局面？
     }
 }
