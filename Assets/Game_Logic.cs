@@ -1,8 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Video;   // ★ 新增：使用 VideoPlayer
 using TMPro;
 using System.Collections.Generic;
 using System.Collections;
+using System.Text;   // ★ 新增：給 BuildOutsSummary 用
 
 public class Game_Logic : MonoBehaviour
 {
@@ -54,6 +56,16 @@ public class Game_Logic : MonoBehaviour
 
     // ===================== 結束演出 / 音效 =====================
     public enum ResultType { Strikeout, Walk, Hit, Homerun, Out, WalkOffWin, InningOver }
+
+    // ★ 新增：出局類型（打擊出局 / 三振出局）
+    private enum OutDetailType
+    {
+        BattedOut,   // 打出去被接殺、滾地出局
+        Strikeout    // 三振
+    }
+
+    // ★ 新增：本半局的出局紀錄（依序存入）
+    private List<OutDetailType> outDetails = new List<OutDetailType>();
 
     [Header("End Sequence UI / SFX")]
     public GameObject endPanel;
@@ -113,6 +125,18 @@ public class Game_Logic : MonoBehaviour
     public Sprite bgFirework;        // 全壘打時的煙火背景（例如：baseball_picture_firework）
     public Sprite bgSadscene;        // 輸球時的悲傷背景（例如：baseball_picture_sadscene）
 
+    // ===================== 影片播放（投手 / 打者） =====================
+    [Header("Pitch & Batter Video")]
+    [Tooltip("投手投球 mp4 的 VideoPlayer")]
+    public VideoPlayer pitcherVideoPlayer;
+    [Tooltip("打者打擊 mp4 的 VideoPlayer")]
+    public VideoPlayer batterVideoPlayer;
+    [Tooltip("如果有做一個外層 Panel 包住兩個影片，可以丟在這裡（沒有也可留空）")]
+    public GameObject videoOverlayRoot;
+
+    // ★ 新增：單獨的影片相機
+    public Camera videoCamera;
+
     // ===================== 狀態 =====================
     private enum Choice { None, Swing, Take }
     private Choice currentChoice = Choice.None;
@@ -133,6 +157,9 @@ public class Game_Logic : MonoBehaviour
 
     // ★★★ 新增：避免非第3好球卻重播三振語音的旗標
     private bool strikeoutHandled = false;
+
+    // ★★★ 新增：控制「主播還在講開場」時，暫時不要顯示開始按鈕
+    private bool waitingForIntro = false;
 
     // 中文球種
     private string        pitcherType  = "快速球";
@@ -362,10 +389,19 @@ public class Game_Logic : MonoBehaviour
         }
         // --------------------------------------
 
-        GenerateNewInning();
+        // 如果有影片外層 Panel，起始先關掉
+        if (videoOverlayRoot != null)
+            videoOverlayRoot.SetActive(false);
+        if (pitcherVideoPlayer != null)
+            pitcherVideoPlayer.gameObject.SetActive(false);
+        if (batterVideoPlayer != null)
+            batterVideoPlayer.gameObject.SetActive(false);
 
-        // 讓老欄位也能沿用：把 base1B/2B/3B 指向 infieldPanel 的 Base_1/2/3
-        // <— 這步請在 Inspector 先把 GameObject 指到 Base_1 / Base_2 / Base_3
+        // ★ 一開始不要讓 VideoCamera 畫東西
+        if (videoCamera != null)
+            videoCamera.enabled = false;
+
+        GenerateNewInning();
 
         // 自動抓同物件上的 BaseLight（若你沒手動拖）
         if (baseLight1B == null && base1B != null) baseLight1B = base1B.GetComponent<BaseLight>();
@@ -421,6 +457,14 @@ public class Game_Logic : MonoBehaviour
         if (backgroundImage != null && bgBaseball != null)
             backgroundImage.sprite = bgBaseball;
 
+        // 影片相關也順便關掉
+        if (videoOverlayRoot != null)
+            videoOverlayRoot.SetActive(false);
+        if (pitcherVideoPlayer != null)
+            pitcherVideoPlayer.gameObject.SetActive(false);
+        if (batterVideoPlayer != null)
+            batterVideoPlayer.gameObject.SetActive(false);
+
         inningOver  = false;
 
         strikes     = 0;
@@ -430,6 +474,9 @@ public class Game_Logic : MonoBehaviour
 
         // ★ 重置三振旗標
         strikeoutHandled = false;
+
+        // ★ 新增：清空本半局出局紀錄
+        outDetails.Clear();
 
         ourScore = Random.Range(3, 6);
         oppScore = ourScore + Random.Range(1, 3);
@@ -443,11 +490,16 @@ public class Game_Logic : MonoBehaviour
         currentChoice   = Choice.None;
         outcomeInfo.text = "";
 
-        // 起始狀態：尚未開始 -> 只顯示「開始遊戲」，隱藏左右策略按鈕
+        // 起始狀態：尚未開始
         gameStarted = false;
+
+        // ★★★ 一開始要「等主播講完」，先把 waitingForIntro 打開 & 把開始按鈕藏起來
+        waitingForIntro = true;
         SetConfirmLabel("開始遊戲");
         SetStrategyButtonsVisible(false);
         ResetChoiceHighlight();
+        if (confirmButton != null)
+            confirmButton.gameObject.SetActive(false);
 
         // 清空紀錄 + 表頭
         records.Clear();
@@ -470,7 +522,7 @@ public class Game_Logic : MonoBehaviour
         // 起始隱藏跑者
         if (uiRunner != null) uiRunner.HideRunner();
 
-        // >>> 新增：播放開場比分解說語音（現在是 X 比 Y，目前 Z 分落後，最後一棒打者兩出局，看能否扭轉局面？）
+        // >>> 播放開場比分解說語音（講完才會放出「開始遊戲」按鈕）
         StartCoroutine(CoPlayIntroSentence());
     }
 
@@ -478,6 +530,14 @@ public class Game_Logic : MonoBehaviour
     {
         inningOver = true;
         state = AtBatState.Complete;
+
+        // ★ 新增：把「這半局最後是怎麼出局」串進文字
+        string outsSummary = BuildOutsSummary();
+        if (!string.IsNullOrEmpty(outsSummary))
+        {
+            finalLine += "\n" + outsSummary;
+        }
+
         SetUIForState();
         outcomeInfo.text = finalLine;
 
@@ -487,13 +547,11 @@ public class Game_Logic : MonoBehaviour
         if (backgroundImage != null && lost && bgSadscene != null)
             backgroundImage.sprite = bgSadscene;
 
-        // ❗❗ 這裡改成：只有在「不是輸球」或你有特別開 showPitchByPitchOnLoss 時，才自動顯示逐球面板
         if (detailInfoCanvas != null)
             detailInfoCanvas.SetActive(!lost || showPitchByPitchOnLoss);
 
-        // 場上元素
         if (uiRunner != null)
-            uiRunner.HideRunner();   // 收場隱藏跑者（保留原邏輯）
+            uiRunner.HideRunner();
 
         AutoScrollToBottom();
     }
@@ -504,24 +562,41 @@ public class Game_Logic : MonoBehaviour
         switch (state)
         {
             case AtBatState.Ready:
-            case AtBatState.InProgress:
-                confirmButton.gameObject.SetActive(true);
-                confirmButton.interactable = true;
-
-                // 若尚未開始，只能看到「開始遊戲」
+                // ★★★ Ready 狀態下，如果還在等主播開場，就不要顯示開始按鈕
+                if (confirmButton != null)
+                {
+                    bool show = !waitingForIntro;
+                    confirmButton.gameObject.SetActive(show);
+                    confirmButton.interactable = show;
+                }
                 SetStrategyButtonsVisible(gameStarted);
-                swingButton.interactable = gameStarted;
-                takeButton .interactable = gameStarted;
+                if (newGameButton != null)
+                    newGameButton.gameObject.SetActive(false);
+                break;
 
-                newGameButton.gameObject.SetActive(false);
+            case AtBatState.InProgress:
+                if (confirmButton != null)
+                {
+                    confirmButton.gameObject.SetActive(true);
+                    confirmButton.interactable = true;
+                }
+                SetStrategyButtonsVisible(gameStarted);
+                if (newGameButton != null)
+                    newGameButton.gameObject.SetActive(false);
                 break;
 
             case AtBatState.Complete:
-                confirmButton.interactable = false;
-                swingButton  .interactable = false;
-                takeButton   .interactable = false;
-                newGameButton.gameObject.SetActive(true);
-                newGameButton.interactable = true;
+                if (confirmButton != null)
+                {
+                    confirmButton.interactable = false;
+                }
+                if (swingButton != null) swingButton.interactable = false;
+                if (takeButton  != null) takeButton .interactable = false;
+                if (newGameButton != null)
+                {
+                    newGameButton.gameObject.SetActive(true);
+                    newGameButton.interactable = true;
+                }
                 break;
         }
     }
@@ -540,6 +615,7 @@ public class Game_Logic : MonoBehaviour
             SetStrategyButtonsVisible(true);
 
             // 重新套用互動狀態
+            state = AtBatState.InProgress;
             SetUIForState();
 
             outcomeInfo.text = "";
@@ -553,7 +629,76 @@ public class Game_Logic : MonoBehaviour
             return;
         }
 
-        // 已開始 -> 進入原本一次投球流程
+        // 已開始 → 這裡改成：先播影片，再真正丟球
+        if (inningOver) return;
+        if (isPitching) return; // 避免狂按
+
+        StartCoroutine(CoPlayVideosThenExecutePitch());
+    }
+
+    // ★ 新增：先播「投手影片 → 打者影片」，播完再呼叫 ExecutePitch()
+    IEnumerator CoPlayVideosThenExecutePitch()
+    {
+        isPitching = true;
+
+        // 按鈕暫時不能按
+        if (confirmButton != null)
+            confirmButton.interactable = false;
+        
+        // ★ 播影片前打開 VideoCamera
+        if (videoCamera != null)
+            videoCamera.enabled = true;
+
+        // 打開影片外框（如果有）
+        if (videoOverlayRoot != null)
+            videoOverlayRoot.SetActive(true);
+
+        // 投手影片
+        if (pitcherVideoPlayer != null && pitcherVideoPlayer.clip != null)
+        {
+            pitcherVideoPlayer.gameObject.SetActive(true);
+            if (batterVideoPlayer != null)
+                batterVideoPlayer.gameObject.SetActive(false);
+
+            pitcherVideoPlayer.Stop();
+            pitcherVideoPlayer.Play();
+
+            // 等影片播完
+            yield return new WaitUntil(() => !pitcherVideoPlayer.isPlaying);
+        }
+
+        // 打者影片
+        if (batterVideoPlayer != null && batterVideoPlayer.clip != null)
+        {
+            if (pitcherVideoPlayer != null)
+                pitcherVideoPlayer.gameObject.SetActive(false);
+
+            batterVideoPlayer.gameObject.SetActive(true);
+            batterVideoPlayer.Stop();
+            batterVideoPlayer.Play();
+
+            // 等影片播完
+            yield return new WaitUntil(() => !batterVideoPlayer.isPlaying);
+        }
+
+        // 關掉影片 UI
+        if (pitcherVideoPlayer != null)
+            pitcherVideoPlayer.gameObject.SetActive(false);
+        if (batterVideoPlayer != null)
+            batterVideoPlayer.gameObject.SetActive(false);
+        if (videoOverlayRoot != null)
+            videoOverlayRoot.SetActive(false);
+
+        // ★ 關掉 VideoCamera，回到正常畫面
+        if (videoCamera != null)
+            videoCamera.enabled = false;
+
+        // 按鈕恢復可以按
+        if (confirmButton != null)
+            confirmButton.interactable = true;
+
+        // 影片播完才真正進入「這球的邏輯」
+        isPitching = false;   // 還原，讓 ExecutePitch 自己再跑它的 isPitching 流程
         ExecutePitch();
     }
 
@@ -762,6 +907,9 @@ public class Game_Logic : MonoBehaviour
             }
             else if (r < 0.44f)
             {
+                // ★ 打出去被接殺/滾地出局
+                RegisterOut(OutDetailType.BattedOut);
+
                 outs++; outcomeInfo.text = "出局（全力）";
                 Speak(voOut);
                 StartSadNow();
@@ -811,6 +959,9 @@ public class Game_Logic : MonoBehaviour
             }
             else if (r < 0.48f)
             {
+                // ★ 打出去被接殺/滾地出局
+                RegisterOut(OutDetailType.BattedOut);
+
                 outs++; outcomeInfo.text = "出局（普通）";
                 Speak(voOut);
                 StartSadNow();
@@ -910,17 +1061,17 @@ public class Game_Logic : MonoBehaviour
 
     void CheckStrikeout()
     {
-        // 防呆：避免任何路徑把 strikes 加超過 3
         if (strikes > 3) strikes = 3;
 
-        // ★ 只有在「剛好累積到 3 好球」且尚未處理過時，才視為三振
         if (strikes == 3 && !strikeoutHandled)
         {
             strikeoutHandled = true;
 
+            // ★ 新增：紀錄「三振出局」
+            RegisterOut(OutDetailType.Strikeout);
+
             outs++;
             outcomeInfo.text = "三振出局！";
-            // 三振語音 + 悲傷音樂
             Speak(voStrikeout);
             StartSadNow();
             FinishAtBat(ResultType.Strikeout, $"出局數：{outs}");
@@ -928,7 +1079,6 @@ public class Game_Logic : MonoBehaviour
         }
         else
         {
-            // 未達三好球（或已處理過），只更新計數燈等，不做三振處理
             UpdateCountLights();
         }
     }
@@ -961,7 +1111,6 @@ public class Game_Logic : MonoBehaviour
 
     void UpdateBaseIcons()
     {
-        // 有 BaseLight 就用閃爍；沒有就用原本換色（白/紅）
         if (baseLight1B != null) baseLight1B.SetActive(on1B);
         else SetBaseColor(base1B, on1B ? Color.red : Color.white);
 
@@ -971,7 +1120,6 @@ public class Game_Logic : MonoBehaviour
         if (baseLight3B != null) baseLight3B.SetActive(on3B);
         else SetBaseColor(base3B, on3B ? Color.red : Color.white);
     }
-
 
     void SetBaseColor(GameObject go, Color c)
     {
@@ -1042,7 +1190,6 @@ public class Game_Logic : MonoBehaviour
         Canvas.ForceUpdateCanvases();
     }
 
-    // 依 Title/Viewport 對齊
     void AlignRecordAreaToTitle()
     {
         if (recordScrollView == null || recordTable == null || recordContent == null) return;
@@ -1157,7 +1304,7 @@ public class Game_Logic : MonoBehaviour
     {
         if (sadSource == null || sadMusic == null) return;
         if (sadRoutine != null) { StopCoroutine(sadRoutine); sadRoutine = null; }
-        sadSource.Stop(); // 不重疊
+        sadSource.Stop();
         sadRoutine = StartCoroutine(CoPlaySadMusic());
     }
 
@@ -1169,7 +1316,6 @@ public class Game_Logic : MonoBehaviour
             yield break;
         }
 
-        // 淡出並暫停 BGM
         float startVol = bgmSource.volume;
         float t = 0f;
         while (t < bgmFadeOutTime)
@@ -1181,16 +1327,13 @@ public class Game_Logic : MonoBehaviour
         bgmSource.volume = 0f;
         bgmSource.Pause();
 
-        // 播放 sadmusic（獨立的 sadSource，不受 Pause 影響）
         sadSource.clip = sadMusic;
         sadSource.volume = sadMusicVolume;
         sadSource.Play();
 
-        // 等待播畢 + 些微停頓
         yield return new WaitWhile(() => sadSource.isPlaying);
         yield return new WaitForSecondsRealtime(sadHoldExtra);
 
-        // 恢復 BGM（淡入）
         bgmSource.UnPause();
         t = 0f;
         while (t < bgmFadeInTime)
@@ -1231,15 +1374,12 @@ public class Game_Logic : MonoBehaviour
             _ => ""
         };
 
-        // 先做各結果的聲音/BGM
         switch (type)
         {
             case ResultType.Homerun:
-                PlayOneShot(sfxHit);   // ★命中：播放 hit
+                PlayOneShot(sfxHit);
                 PlayOneShot(sfxCheer);
                 StartCoroutine(CoPauseBGMWithFade(slowMoDuration + endHoldSeconds));
-
-                // ★ 如有開啟，關閉 Detail 面板（避免擋畫面）
                 if (autoHideDetailOnHomerun && detailInfoCanvas != null)
                     detailInfoCanvas.SetActive(false);
                 break;
@@ -1251,7 +1391,7 @@ public class Game_Logic : MonoBehaviour
                 break;
 
             case ResultType.Hit:
-                PlayOneShot(sfxHit);   // ★命中：播放 hit
+                PlayOneShot(sfxHit);
                 break;
 
             case ResultType.Strikeout:
@@ -1273,7 +1413,6 @@ public class Game_Logic : MonoBehaviour
                 break;
         }
 
-        // 是否顯示面板
         bool showPanel = true;
         if (type == ResultType.Homerun && !showEndPanelOnHomerun)
             showPanel = false;
@@ -1283,12 +1422,12 @@ public class Game_Logic : MonoBehaviour
 
     IEnumerator CoEndSequence(string title, string subtitle, bool showPanel = true)
     {
-        if (endPanel != null)
+        if (endPanel != null && showPanel)
         {
             endPanel.SetActive(true);
             if (endTitle)    endTitle.text    = title;
             if (endSubtitle) endSubtitle.text = subtitle;
-            yield return null; // 等一幀，確保 Animator Ready
+            yield return null;
             if (endAnimator != null && !string.IsNullOrEmpty(endTriggerName))
                 endAnimator.SetTrigger(endTriggerName);
         }
@@ -1300,7 +1439,7 @@ public class Game_Logic : MonoBehaviour
 
         yield return new WaitForSecondsRealtime(endHoldSeconds);
 
-        if (endPanel != null) endPanel.SetActive(false);
+        if (endPanel != null && showPanel) endPanel.SetActive(false);
 
         state = AtBatState.Complete;
         SetUIForState();
@@ -1309,16 +1448,13 @@ public class Game_Logic : MonoBehaviour
     // ===================== 立即停止所有音訊與重置結束 UI =====================
     void StopAllAudioNow()
     {
-        // 停掉所有協程（避免 BGM 淡入淡出 / 悲傷音樂協程在背景繼續）
         StopAllCoroutines();
         sadRoutine = null;
 
-        // 停 VO / SFX / SAD（PlayOneShot 會被 Stop() 一起停掉）
         if (voice != null)    voice.Stop();
         if (sfx != null)      sfx.Stop();
         if (sadSource != null) sadSource.Stop();
 
-        // 恢復並確保 BGM 在正常音量與循環狀態
         if (bgmSource != null)
         {
             bgmSource.volume = bgmVolume;
@@ -1334,7 +1470,6 @@ public class Game_Logic : MonoBehaviour
         }
     }
 
-    // 收掉結束面板與動畫，避免重開後殘留
     void ResetEndUI()
     {
         if (endPanel != null) endPanel.SetActive(false);
@@ -1363,9 +1498,44 @@ public class Game_Logic : MonoBehaviour
         }
     }
 
+    // ===================== 出局方式紀錄相關（新增） =====================
+
+    void RegisterOut(OutDetailType t)
+    {
+        outDetails.Add(t);
+    }
+
+    string OutDetailToText(OutDetailType t)
+    {
+        switch (t)
+        {
+            case OutDetailType.BattedOut: return "打擊出局";
+            case OutDetailType.Strikeout: return "三振出局";
+            default: return "出局";
+        }
+    }
+
+    string BuildOutsSummary()
+    {
+        if (outDetails == null || outDetails.Count == 0) return "";
+
+        if (outs >= 3 && outDetails.Count == 1)
+        {
+            return "本半局第三個出局：" + OutDetailToText(outDetails[0]);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.Append("本半局出局方式：");
+        for (int i = 0; i < outDetails.Count; i++)
+        {
+            if (i > 0) sb.Append("、");
+            sb.Append(OutDetailToText(outDetails[i]));
+        }
+        return sb.ToString();
+    }
+
     // ===================== 開場比分說明（組合語音） =====================
 
-    // 播一個 clip，並等它播完一點點空隙
     IEnumerator CoPlayClip(AudioClip clip, float gap = 0.05f)
     {
         if (voice == null || clip == null) yield break;
@@ -1374,20 +1544,17 @@ public class Game_Logic : MonoBehaviour
         yield return new WaitForSeconds(clip.length + gap);
     }
 
-    // 播數字 n（用 segNumbers 查表；如果超過陣列就一位一位唸）
     IEnumerator CoPlayNumber(int value)
     {
         if (voice == null || segNumbers == null || segNumbers.Length == 0)
             yield break;
 
-        // 直接有對應的就用
         if (value >= 0 && value < segNumbers.Length && segNumbers[value] != null)
         {
             yield return CoPlayClip(segNumbers[value]);
         }
         else
         {
-            // 例如 12 -> 播「1」「2」
             string s = value.ToString();
             foreach (char ch in s)
             {
@@ -1400,17 +1567,22 @@ public class Game_Logic : MonoBehaviour
         }
     }
 
-    // 組成：「現在是 X 比 Y，目前 Z 分落後，最後一棒打者兩出局，看能否扭轉局面？」
     IEnumerator CoPlayIntroSentence()
     {
-        int xScore = oppScore;           // X：對手分數
-        int yScore = ourScore;           // Y：我方分數
-        int diff   = Mathf.Max(0, xScore - yScore);   // Z：落後分數
-
-        if (diff <= 0) yield break;      // 不落後就不播這句（可依需求拿掉）
+        int xScore = oppScore;
+        int yScore = ourScore;
+        int diff   = Mathf.Max(0, xScore - yScore);
 
         // 稍微等一下，避免和 sfxStart 擠在一起
         yield return new WaitForSeconds(0.2f);
+
+        // 若沒有落後，就不要講這段，直接開放按鈕
+        if (diff <= 0)
+        {
+            waitingForIntro = false;
+            SetUIForState();
+            yield break;
+        }
 
         // 「現在是 X 比 Y，目前 Z 分落後，最後一棒打者兩出局，看能否扭轉局面？」
         yield return CoPlayClip(segNow);                 // 現在是
@@ -1422,5 +1594,9 @@ public class Game_Logic : MonoBehaviour
         yield return CoPlayClip(segFen);                 // 分
         yield return CoPlayClip(segLastTwoOut);          // 最後一棒打者兩出局
         yield return CoPlayClip(segCanComeback);         // 看能否扭轉局面？
+
+        // ★★★ 主播講完了，才開放「開始遊戲」按鈕
+        waitingForIntro = false;
+        SetUIForState();
     }
 }
