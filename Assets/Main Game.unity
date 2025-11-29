@@ -2990,6 +2990,81 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+--- !u!1 &644021772
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 644021773}
+  - component: {fileID: 644021774}
+  - component: {fileID: 644021775}
+  m_Layer: 5
+  m_Name: PitcherImage
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &644021773
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 644021772}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1274236422}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 150, y: 150}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &644021774
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 644021772}
+  m_CullTransparentMesh: 1
+--- !u!114 &644021775
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 644021772}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
 --- !u!1 &659017218
 GameObject:
   m_ObjectHideFlags: 0
@@ -8414,87 +8489,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 789962596}
   m_CullTransparentMesh: 1
---- !u!1 &795106722
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 795106723}
-  - component: {fileID: 795106724}
-  - component: {fileID: 795106726}
-  m_Layer: 6
-  m_Name: PitcherVideo
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &795106723
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 795106722}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1274236422}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: -772, y: 100}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!328 &795106724
-VideoPlayer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 795106722}
-  m_Enabled: 1
-  m_VideoClip: {fileID: 32900000, guid: 4bc84313e8cfd4dbbb8e0a17a9596787, type: 3}
-  m_TargetCameraAlpha: 1
-  m_TargetCamera3DLayout: 0
-  m_TargetCamera: {fileID: 1363090069}
-  m_TargetTexture: {fileID: 8400000, guid: 9317fc0668e54498a8907262d7f2213a, type: 2}
-  m_TimeReference: 0
-  m_TargetMaterialRenderer: {fileID: 0}
-  m_TargetMaterialProperty: <noninit>
-  m_RenderMode: 1
-  m_AspectRatio: 2
-  m_DataSource: 0
-  m_TimeUpdateMode: 2
-  m_PlaybackSpeed: 2
-  m_AudioOutputMode: 2
-  m_TargetAudioSources:
-  - {fileID: 0}
-  m_DirectAudioVolumes:
-  - 1
-  m_Url: 
-  m_EnabledAudioTracks: 01
-  m_DirectAudioMutes: 00
-  m_ControlledAudioTrackCount: 1
-  m_PlayOnAwake: 0
-  m_SkipOnDrop: 1
-  m_Looping: 0
-  m_WaitForFirstFrame: 0
-  m_FrameReadyEventEnabled: 0
-  m_VideoShaders: []
---- !u!222 &795106726
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 795106722}
-  m_CullTransparentMesh: 1
 --- !u!1 &826292130
 GameObject:
   m_ObjectHideFlags: 0
@@ -9726,8 +9720,8 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 795106723}
-  - {fileID: 1758192735}
+  - {fileID: 644021773}
+  - {fileID: 2024362147}
   m_Father: {fileID: 378285574}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -10100,7 +10094,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1363090067
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11028,10 +11022,44 @@ MonoBehaviour:
   bgBaseball: {fileID: 21300000, guid: 13cf9371b8f3a4e8089fc03196594cb9, type: 3}
   bgFirework: {fileID: 21300000, guid: 69f4d251509084d719400fa9aaa5956f, type: 3}
   bgSadscene: {fileID: 21300000, guid: d57ace66896a64eec98b66e15f28c1d3, type: 3}
-  pitcherVideoPlayer: {fileID: 795106724}
-  batterVideoPlayer: {fileID: 1758192736}
   videoOverlayRoot: {fileID: 1274236421}
-  videoCamera: {fileID: 1363090069}
+  pitcherImage: {fileID: 644021775}
+  batterImage: {fileID: 2024362145}
+  pitcherFrames:
+  - {fileID: 21300000, guid: 83bbe60014ea149289bb4aadf5725b0d, type: 3}
+  - {fileID: 21300000, guid: 21c4f97f0fc3d4b189d36962ebaefcd5, type: 3}
+  - {fileID: 21300000, guid: 79f36a3a5344b4102b98198006e8cd3c, type: 3}
+  - {fileID: 21300000, guid: 25af9070244814efaacdd435c4920e2f, type: 3}
+  batterFrames:
+  - {fileID: 21300000, guid: 08eb62a230c95450d8b96406c430f69e, type: 3}
+  - {fileID: 21300000, guid: 28caeba88cf8c4eeea401f779470afee, type: 3}
+  - {fileID: 21300000, guid: 0a3c38da6a53b4725810de7526dc5ee1, type: 3}
+  batterTakeBallOrWalkFrames:
+  - {fileID: 21300000, guid: 618ad2bb0eb234d60b4b9b546d0673e0, type: 3}
+  batterTakeStrikeFrames:
+  - {fileID: 21300000, guid: 955d5945b11ef431e934e6df623772c1, type: 3}
+  batterSwingMissFrames:
+  - {fileID: 21300000, guid: e437858fbbd564b06828c4473a7cfe74, type: 3}
+  batterFoulFrames:
+  - {fileID: 21300000, guid: 1014a29eb348b4588bdaa9ac8ea04a3e, type: 3}
+  batterSwingHitFrames:
+  - {fileID: 21300000, guid: 08eb62a230c95450d8b96406c430f69e, type: 3}
+  - {fileID: 21300000, guid: 28caeba88cf8c4eeea401f779470afee, type: 3}
+  - {fileID: 21300000, guid: 0a3c38da6a53b4725810de7526dc5ee1, type: 3}
+  - {fileID: 21300000, guid: 12309e333e4b84055b6bac94387661c4, type: 3}
+  batterHomerunFrames:
+  - {fileID: 21300000, guid: 08eb62a230c95450d8b96406c430f69e, type: 3}
+  - {fileID: 21300000, guid: 28caeba88cf8c4eeea401f779470afee, type: 3}
+  - {fileID: 21300000, guid: 0a3c38da6a53b4725810de7526dc5ee1, type: 3}
+  - {fileID: 21300000, guid: 743f61afcb1d34770bc22e4fb84c4749, type: 3}
+  - {fileID: 21300000, guid: 71fffd49500b94f96b1c30f0891dfa9d, type: 3}
+  batterBattedOutFrames:
+  - {fileID: 21300000, guid: 08eb62a230c95450d8b96406c430f69e, type: 3}
+  - {fileID: 21300000, guid: 28caeba88cf8c4eeea401f779470afee, type: 3}
+  - {fileID: 21300000, guid: 0a3c38da6a53b4725810de7526dc5ee1, type: 3}
+  - {fileID: 21300000, guid: 11e59144072484ee6b3ece747d0f4e80, type: 3}
+  pitcherFrameTime: 0.15
+  batterFrameTime: 0.15
   voice: {fileID: 56288600}
   voStartAtBat:
   - {fileID: 8300000, guid: 3c7232619641846e4a5a068aee995ea0, type: 3}
@@ -11127,87 +11155,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1758192734
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1758192735}
-  - component: {fileID: 1758192736}
-  - component: {fileID: 1758192738}
-  m_Layer: 6
-  m_Name: BatterVideo
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &1758192735
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1758192734}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1274236422}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!328 &1758192736
-VideoPlayer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1758192734}
-  m_Enabled: 1
-  m_VideoClip: {fileID: 32900000, guid: d6ee350ce13b94d70a9689c65d664a5b, type: 3}
-  m_TargetCameraAlpha: 1
-  m_TargetCamera3DLayout: 0
-  m_TargetCamera: {fileID: 1363090069}
-  m_TargetTexture: {fileID: 8400000, guid: ef89d635b253147ebb5b4a92504f65ef, type: 2}
-  m_TimeReference: 0
-  m_TargetMaterialRenderer: {fileID: 0}
-  m_TargetMaterialProperty: <noninit>
-  m_RenderMode: 1
-  m_AspectRatio: 2
-  m_DataSource: 0
-  m_TimeUpdateMode: 2
-  m_PlaybackSpeed: 2
-  m_AudioOutputMode: 2
-  m_TargetAudioSources:
-  - {fileID: 0}
-  m_DirectAudioVolumes:
-  - 1
-  m_Url: 
-  m_EnabledAudioTracks: 01
-  m_DirectAudioMutes: 00
-  m_ControlledAudioTrackCount: 1
-  m_PlayOnAwake: 0
-  m_SkipOnDrop: 1
-  m_Looping: 0
-  m_WaitForFirstFrame: 0
-  m_FrameReadyEventEnabled: 0
-  m_VideoShaders: []
---- !u!222 &1758192738
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1758192734}
-  m_CullTransparentMesh: 1
 --- !u!1 &1796677812
 GameObject:
   m_ObjectHideFlags: 0
@@ -11515,7 +11462,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u9078\u64C7\u4E0B\u4E00\u90E8\u52D5\u4F5C \uFF01\n"
+  m_text: "\u9078\u64C7\u4E0B\u4E00\u6B65\u52D5\u4F5C\uFF01\uFF01\uFF01"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 0bc3d8cacad9b4927a417cf69f8115b0, type: 2}
   m_sharedMaterial: {fileID: 1105526486694279269, guid: 0bc3d8cacad9b4927a417cf69f8115b0, type: 2}
@@ -12325,6 +12272,81 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1985129878}
   m_CullTransparentMesh: 1
+--- !u!1 &2024362144
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2024362147}
+  - component: {fileID: 2024362146}
+  - component: {fileID: 2024362145}
+  m_Layer: 5
+  m_Name: BatterImage
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2024362145
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2024362144}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &2024362146
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2024362144}
+  m_CullTransparentMesh: 1
+--- !u!224 &2024362147
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2024362144}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1274236422}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 150, y: 150}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &2051281582
 GameObject:
   m_ObjectHideFlags: 0
