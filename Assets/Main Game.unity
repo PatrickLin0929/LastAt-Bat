@@ -10998,6 +10998,7 @@ MonoBehaviour:
   sfxHit: {fileID: 8300000, guid: 23a322dc372954e5c957017bba79ae96, type: 3}
   hitClipResourcePath: Sound/hit
   sfxStart: {fileID: 8300000, guid: b9f8225cd83934e4f91b311d811eb7ab, type: 3}
+  buttonClickSFX: {fileID: 8300000, guid: 2284b5ccf6ece4b69b77b72385717915, type: 3}
   pitchTakeStrike: 0.9
   pitchTakeBall: 1.05
   pitchSwingMiss: 1.2
@@ -11058,8 +11059,8 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 28caeba88cf8c4eeea401f779470afee, type: 3}
   - {fileID: 21300000, guid: 0a3c38da6a53b4725810de7526dc5ee1, type: 3}
   - {fileID: 21300000, guid: 11e59144072484ee6b3ece747d0f4e80, type: 3}
-  pitcherFrameTime: 0.15
-  batterFrameTime: 0.15
+  pitcherFrameTime: 0.3
+  batterFrameTime: 0.3
   voice: {fileID: 56288600}
   voStartAtBat:
   - {fileID: 8300000, guid: 3c7232619641846e4a5a068aee995ea0, type: 3}

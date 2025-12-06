@@ -104,6 +104,9 @@ public class Game_Logic : MonoBehaviour
     public string hitClipResourcePath = "Sound/hit";
     public AudioClip sfxStart;   // 開場
 
+        // ★ 新增：按鈕點擊音效
+    public AudioClip buttonClickSFX;
+
     [Header("SFX 音高（可在 Inspector 調整）")]
     public float pitchTakeStrike = 0.90f;
     public float pitchTakeBall   = 1.05f;
@@ -355,7 +358,7 @@ public class Game_Logic : MonoBehaviour
 
     // =========================================================
 
-    void Start()
+        void Start()
     {
         // （可選）自動載入 Resources/Sound/hit.mp3 作為 sfxHit 後備方案
         if (sfxHit == null && !string.IsNullOrEmpty(hitClipResourcePath))
@@ -373,13 +376,43 @@ public class Game_Logic : MonoBehaviour
         }
 
         // 綁定按鈕
-        confirmButton.onClick.AddListener(OnConfirmPressed);
-        swingButton  .onClick.AddListener(() => SetChoice(Choice.Swing));
-        takeButton   .onClick.AddListener(() => SetChoice(Choice.Take));
-        newGameButton.onClick.AddListener(GenerateNewInning);
+        // ====== ★ 這裡開始多加 PlayButtonSFX ======
+        if (confirmButton != null)
+        {
+            confirmButton.onClick.AddListener(OnConfirmPressed);
+            confirmButton.onClick.AddListener(PlayButtonSFX);
+        }
 
-        openDetailInfoButton .onClick.AddListener(ShowDetailCanvas);
-        closeDetailButton     .onClick.AddListener(HideDetailCanvas);
+        if (swingButton != null)
+        {
+            swingButton.onClick.AddListener(() => SetChoice(Choice.Swing));
+            swingButton.onClick.AddListener(PlayButtonSFX);
+        }
+
+        if (takeButton != null)
+        {
+            takeButton.onClick.AddListener(() => SetChoice(Choice.Take));
+            takeButton.onClick.AddListener(PlayButtonSFX);
+        }
+
+        if (newGameButton != null)
+        {
+            newGameButton.onClick.AddListener(GenerateNewInning);
+            newGameButton.onClick.AddListener(PlayButtonSFX);
+        }
+
+        if (openDetailInfoButton != null)
+        {
+            openDetailInfoButton.onClick.AddListener(ShowDetailCanvas);
+            openDetailInfoButton.onClick.AddListener(PlayButtonSFX);
+        }
+
+        if (closeDetailButton != null)
+        {
+            closeDetailButton.onClick.AddListener(HideDetailCanvas);
+            closeDetailButton.onClick.AddListener(PlayButtonSFX);
+        }
+        // ====== ★ 到這裡都是新增的綁定 ======
 
         // Dropdown 同步
         if (swingTypeDropdown   != null) swingTypeDropdown  .onValueChanged.AddListener(OnMainDropdownChanged);
@@ -455,6 +488,7 @@ public class Game_Logic : MonoBehaviour
         AlignRecordAreaToTitle();
     }
 
+
     bool ValidateBindings()
     {
         bool ok = true;
@@ -483,8 +517,8 @@ public class Game_Logic : MonoBehaviour
         return ok;
     }
 
-    // ===================== Inning lifecycle =====================
-    void GenerateNewInning()
+        // ===================== Inning lifecycle =====================
+        void GenerateNewInning()
     {
         // ★ 重新開始：立刻停掉所有音訊/協程、收結束面板，避免追平/全壘打/歡呼殘留
         StopAllAudioNow();
@@ -525,16 +559,41 @@ public class Game_Logic : MonoBehaviour
         // 預設三振型態先設 Looking（只是一個初始值，實際會在 CheckStrikeoutFromTake/FromSwing 時更新）
         lastStrikeoutStyle = StrikeoutStyle.Looking;
 
-        ourScore = Random.Range(3, 6);
-        oppScore = ourScore + Random.Range(1, 3);
+        // ====== 這段改成「一棒全壘打就一定能逆轉」 ======
 
+        // 我方目前分數（可以維持原本 3~5 分區間）
+        ourScore = Random.Range(3, 6);
+
+        // 隨機壘包情況
         on1B = Random.value > 0.5f;
         on2B = Random.value > 0.5f;
         on3B = Random.value > 0.5f;
 
+        // 如果三壘都沒人，就強制塞一個跑者，避免「一棒 HR 只能追平」
+        if (!on1B && !on2B && !on3B)
+        {
+            int pick = Random.Range(0, 3);
+            if      (pick == 0) on1B = true;
+            else if (pick == 1) on2B = true;
+            else                on3B = true;
+        }
+
+        // 計算這一棒全壘打最多可以打幾分（1 + 壘上所有跑者）
+        int hrRuns = 1;
+        if (on1B) hrRuns++;
+        if (on2B) hrRuns++;
+        if (on3B) hrRuns++;
+
+        // diff 介於 1 ~ (hrRuns - 1)
+        // → 現在一定是落後（diff > 0）
+        // → 打出全壘打後：ourScore + hrRuns > oppScore（一定逆轉）
+        int diff = Random.Range(1, hrRuns);   // 上限不含 → 1..hrRuns-1
+        oppScore = ourScore + diff;
+
+        // ====== 其餘維持原本設定 ======
         pitcherType = pitchTypesZh[Random.Range(0, pitchTypesZh.Length)];
 
-        currentChoice   = Choice.None;
+        currentChoice    = Choice.None;
         outcomeInfo.text = "";
 
         // 起始狀態：尚未開始
@@ -604,68 +663,68 @@ public class Game_Logic : MonoBehaviour
     }
 
 
-void SetUIForState()
-{
-    switch (state)
+    void SetUIForState()
     {
-        case AtBatState.Ready:
-            // 開場：如果還在等主播講開場，就先不要顯示按鈕
-            if (confirmButton != null)
-            {
-                bool show = !waitingForIntro;
-                confirmButton.gameObject.SetActive(show);
-                confirmButton.interactable = show;
-            }
+        switch (state)
+        {
+            case AtBatState.Ready:
+                // 開場：如果還在等主播講開場，就先不要顯示按鈕
+                if (confirmButton != null)
+                {
+                    bool show = !waitingForIntro;
+                    confirmButton.gameObject.SetActive(show);
+                    confirmButton.interactable = show;
+                }
 
-            // 只有 gameStarted 之後才顯示揮棒 / 看球
-            SetStrategyButtonsVisible(gameStarted);
+                // 只有 gameStarted 之後才顯示揮棒 / 看球
+                SetStrategyButtonsVisible(gameStarted);
 
-            // ★ 這裡把按鈕互動打開（下一局或新的打席要能再按）
-            if (swingButton != null) swingButton.interactable = gameStarted;
-            if (takeButton  != null) takeButton .interactable = gameStarted;
+                // ★ 這裡把按鈕互動打開（下一局或新的打席要能再按）
+                if (swingButton != null) swingButton.interactable = gameStarted;
+                if (takeButton  != null) takeButton .interactable = gameStarted;
 
-            if (newGameButton != null)
-            {
-                newGameButton.gameObject.SetActive(false);
-            }
-            break;
+                if (newGameButton != null)
+                {
+                    newGameButton.gameObject.SetActive(false);
+                }
+                break;
 
-        case AtBatState.InProgress:
-            if (confirmButton != null)
-            {
-                confirmButton.gameObject.SetActive(true);
-                confirmButton.interactable = true;
-            }
+            case AtBatState.InProgress:
+                if (confirmButton != null)
+                {
+                    confirmButton.gameObject.SetActive(true);
+                    confirmButton.interactable = true;
+                }
 
-            SetStrategyButtonsVisible(gameStarted);
+                SetStrategyButtonsVisible(gameStarted);
 
-            // ★ 打席進行中，揮棒 / 看球要可以按
-            if (swingButton != null) swingButton.interactable = true;
-            if (takeButton  != null) takeButton .interactable = true;
+                // ★ 打席進行中，揮棒 / 看球要可以按
+                if (swingButton != null) swingButton.interactable = true;
+                if (takeButton  != null) takeButton .interactable = true;
 
-            if (newGameButton != null)
-            {
-                newGameButton.gameObject.SetActive(false);
-            }
-            break;
+                if (newGameButton != null)
+                {
+                    newGameButton.gameObject.SetActive(false);
+                }
+                break;
 
-        case AtBatState.Complete:
-            // 這一個打席或這半局結束：暫時鎖按鈕
-            if (confirmButton != null)
-            {
-                confirmButton.interactable = false;
-            }
-            if (swingButton != null) swingButton.interactable = false;
-            if (takeButton  != null) takeButton .interactable = false;
+            case AtBatState.Complete:
+                // 這一個打席或這半局結束：暫時鎖按鈕
+                if (confirmButton != null)
+                {
+                    confirmButton.interactable = false;
+                }
+                if (swingButton != null) swingButton.interactable = false;
+                if (takeButton  != null) takeButton .interactable = false;
 
-            if (newGameButton != null)
-            {
-                newGameButton.gameObject.SetActive(true);
-                newGameButton.interactable = true;
-            }
-            break;
+                if (newGameButton != null)
+                {
+                    newGameButton.gameObject.SetActive(true);
+                    newGameButton.interactable = true;
+                }
+                break;
+        }
     }
-}
 
 
     // ===================== 起始/確認按鈕邏輯 =====================
@@ -1608,6 +1667,13 @@ void SetUIForState()
         sfx.volume = oldVol;
     }
 
+        // ★ 新增：統一的「按鈕點擊音效」
+    void PlayButtonSFX()
+    {
+        if (buttonClickSFX == null) return;
+        PlayOneShot(buttonClickSFX);
+    }
+
     void FinishAtBat(ResultType type, string subtitle)
     {
         string title = type switch
@@ -1712,6 +1778,7 @@ void SetUIForState()
                 {
                     bgmSource.clip = bgmClip;
                     bgmSource.loop = true;
+                    bgmSource.volume = bgmVolume;
                     bgmSource.Play();
                 }
             }
@@ -1826,6 +1893,20 @@ void SetUIForState()
 
         // 若沒有落後，就不要講這段，直接開放按鈕
         if (diff <= 0)
+        {
+            waitingForIntro = false;
+            SetUIForState();
+            yield break;
+        }
+
+        // 計算這個打席在「最理想情況（滿貫砲）」下最多可以得到幾分
+        int maxRunsThisAtBat = 1;   // 打者自己
+        if (on1B) maxRunsThisAtBat++;
+        if (on2B) maxRunsThisAtBat++;
+        if (on3B) maxRunsThisAtBat++;
+
+        // 若就算打出滿貫砲也無法追平比數，就不播「看能否扭轉局面」這段
+        if (ourScore + maxRunsThisAtBat < oppScore)
         {
             waitingForIntro = false;
             SetUIForState();
